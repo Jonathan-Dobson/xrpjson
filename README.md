@@ -131,13 +131,13 @@ construct thousands of transactions per second.
 Every factory is verified against **three canonical sources** before
 landing:
 
-1. **xrpl.js 5.3.0** at `~/.mavis/docs.local/xrpl.js/` — the canonical
+1. **xrpl.js 5.3.0** at `xrpl.js` — the canonical
    JavaScript validator. We check what `validate<Transaction>` does and
    *what it skips*.
-2. **xrpl.org docs** at `~/.mavis/docs.local/xrpl-dev-portal/` — the
+2. **xrpl.org docs** at `xrpl-dev-portal` — the
    human-readable reference. We extract the field tables, internal
    types, and error code catalog.
-3. **XLS specs** at `~/.mavis/docs.local/xrpl-standards/` — the
+3. **XLS specs** at `xrpl-standards` — the
    authoritative spec text. We read the amendment's field table,
    preclaim rules, and cross-field invariants.
 
