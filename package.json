@@ -58,10 +58,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Jonathan-Dobson/xrpjs.git"
+    "url": "git+https://github.com/Jonathan-Dobson/xrpjson.git"
   },
   "bugs": {
-    "url": "https://github.com/Jonathan-Dobson/xrpjs/issues"
+    "url": "https://github.com/Jonathan-Dobson/xrpjson/issues"
   },
-  "homepage": "https://github.com/Jonathan-Dobson/xrpjs#readme"
+  "homepage": "https://github.com/Jonathan-Dobson/xrpjson#readme"
 }
