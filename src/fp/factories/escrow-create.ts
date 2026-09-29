@@ -60,6 +60,9 @@
  *    non-negative integers when provided.**
  *    Source: xrpl.org `escrowcreate.md` — fields are typed `UInt32`.
  *    The class accepts negative numbers as JavaScript `number`s.
+ *    Note: the lower bound is `>= 0` (seconds since the Ripple Epoch),
+ *    NOT `>= RIPPLE_EPOCH_OFFSET` (which would incorrectly reject every
+ *    valid pre-2030 timestamp).
  */
 import type { Amount } from '../../types/amounts.js';
 import {
@@ -71,14 +74,6 @@ import {
 } from '../../validation/helpers.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
-
-// ─── Spec constants ──────────────────────────────────────────────────
-
-/**
- * Ripple Epoch offset (seconds) between UNIX epoch (1970-01-01) and the
- * XRPL reference epoch (2000-01-01).
- */
-const RIPPLE_EPOCH_OFFSET = 946684800;
 
 // ─── Public types ────────────────────────────────────────────────────
 
@@ -162,14 +157,26 @@ function isUInt32(value: unknown): boolean {
 }
 
 /**
- * Validate a Ripple Epoch timestamp (`UInt32`, must be on or after
- * 2000-01-01). Used for `CancelAfter` / `FinishAfter`.
+ * Validate a Ripple Epoch timestamp (`UInt32`, seconds since 2000-01-01).
+ *
+ * The value is "seconds since the Ripple Epoch" — so any non-negative
+ * integer up to 2^32-1 is valid. The lower bound is 0, NOT the
+ * Ripple Epoch offset (`946684800`) — that would compare a Ripple Epoch
+ * value against a UNIX timestamp value and reject every valid timestamp
+ * before 2030.
+ *
+ * Source: xrpl-dev-portal/repo/docs/references/protocol/transactions/types/escrowcreate.md
+ * — "`CancelAfter` … The time, in seconds since the Ripple Epoch, when this
+ * escrow expires." Internal type `UInt32`. Example value in the docs:
+ * `533257958` (≈ 2016-12-01), well below `RIPPLE_EPOCH_OFFSET`.
+ *
+ * Used for `CancelAfter` / `FinishAfter`.
  */
 function isRippleEpochUInt32(value: unknown): boolean {
   return (
     isNumber(value) &&
     Number.isInteger(value) &&
-    value >= RIPPLE_EPOCH_OFFSET &&
+    value >= 0 &&
     value <= 0xffffffff
   );
 }
@@ -215,12 +222,12 @@ export function escrowCreate(props: EscrowCreateProps): EscrowCreate {
   }
   if (props.CancelAfter !== undefined && !isRippleEpochUInt32(props.CancelAfter)) {
     throw new ValidationError(
-      'EscrowCreate: CancelAfter must be a positive integer in seconds since the Ripple Epoch (UInt32)',
+      'EscrowCreate: CancelAfter must be a non-negative integer in seconds since the Ripple Epoch (UInt32)',
     );
   }
   if (props.FinishAfter !== undefined && !isRippleEpochUInt32(props.FinishAfter)) {
     throw new ValidationError(
-      'EscrowCreate: FinishAfter must be a positive integer in seconds since the Ripple Epoch (UInt32)',
+      'EscrowCreate: FinishAfter must be a non-negative integer in seconds since the Ripple Epoch (UInt32)',
     );
   }
   if (

@@ -29,9 +29,11 @@ const ACCOUNT_B = 'rsA2LpzuawewSBQXkiju3YQTMzW13pAAdW';
 const CONDITION_OK =
   'A0258020E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855810100';
 
-// Seconds since Ripple Epoch. Ripple Epoch = 2000-01-01 = 946684800.
-const FinishAfter = 946684800 + 3600; // 1h after epoch start
-const CancelAfter = FinishAfter + 3600; // 2h after epoch start
+// Seconds since Ripple Epoch (2000-01-01). Values come straight from the
+// docs example: https://xrpl.org/docs/references/protocol/transactions/types/escrowcreate
+// (FinishAfter: 533171558, CancelAfter: 533257958 — 2016-12-01).
+const FinishAfter = 533171558;
+const CancelAfter = 533257958;
 
 function make(extras: Record<string, unknown> = {}) {
   return escrowCreate({
@@ -280,15 +282,18 @@ describe('fp/escrowCreate()', () => {
       ).toThrow(/UInt32/);
     });
 
-    it('throws when FinishAfter precedes the Ripple Epoch', () => {
+    it('throws when FinishAfter is a negative integer (not a valid UInt32)', () => {
+      // The factory validates that FinishAfter / CancelAfter are UInt32
+      // (seconds since the Ripple Epoch, 0 .. 2^32-1). Negative numbers
+      // are invalid. Any value >= 0 is accepted as a Ripple Epoch time.
       expect(() =>
         escrowCreate({
           Account: ACCOUNT_A,
           Amount: '10000',
           Destination: ACCOUNT_B,
-          FinishAfter: 1000, // 1970-01-01-ish
+          FinishAfter: -1,
         }),
-      ).toThrow(/Ripple Epoch/);
+      ).toThrow(/UInt32/);
     });
 
     it('throws when FinishAfter >= CancelAfter', () => {
