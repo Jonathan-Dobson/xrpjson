@@ -26,6 +26,17 @@ describe('fp/accountSet()', () => {
     ).toThrow(/TickSize/);
   });
 
+  it('throws when Account is missing at construction', () => {
+    // xrpl.js's validateBaseTransaction requires Account on every tx.
+    expect(() => accountSet({})).toThrow(/Account/);
+  });
+
+  it('throws when Account is not a valid XRPL address at construction', () => {
+    expect(() => accountSet({ Account: 'not-a-valid-address' })).toThrow(
+      /Account/,
+    );
+  });
+
   it('throws on TickSize below minimum at construction', () => {
     expect(() =>
       accountSet({ Account: ACCOUNT_A, TickSize: 2 }),

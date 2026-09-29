@@ -4,7 +4,7 @@
  * Companion prototype to payment.ts. Validates at construction, returns
  * a frozen object with bound validate/toJSON/with methods.
  */
-import { isNumber, isString } from '../../validation/helpers.js';
+import { isAccount, isNumber, isString } from '../../validation/helpers.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 export interface AccountSetProps {
@@ -40,6 +40,14 @@ export interface AccountSet
 }
 
 export function accountSet(props: AccountSetProps): AccountSet {
+  // Account is required per xrpl.js's validateBaseTransaction
+  // (common.ts: validateRequiredField(common, 'Account', isString)).
+  require(
+    props.Account,
+    'AccountSet: Account is required',
+    isAccount,
+  );
+
   // Validate optional fields when present
   if (props.TransferRate !== undefined) {
     require(
