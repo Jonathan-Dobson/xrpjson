@@ -1,11 +1,11 @@
-# xrpjs
+# xrpjson
 
 Functional transaction factories for the XRP Ledger — 79 frozen-shape
 builders verified against [xrpl.js](https://github.com/XRPLF/xrpl.js),
 [xrpl.org](https://xrpl.org/), and [XLS specs](https://github.com/XRPLF/XRPL-Standards).
 
 ```ts
-import { payment, accountSet, vaultCreate } from 'xrpjs';
+import { payment, accountSet, vaultCreate } from 'xrpjson';
 
 const tx = payment({
   Account: 'rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh',
@@ -20,7 +20,7 @@ const wire = tx.toJSON();
 
 ## What it is
 
-`xrpjs` is the functional-programming API for building XRPL transactions.
+`xrpjson` is the functional-programming API for building XRPL transactions.
 Every factory returns a **frozen** transaction object with **eager validation**
 at construction. If a required field is missing, malformed, or violates a
 ledger rule the factory knows about, the call throws — no separate
@@ -100,7 +100,7 @@ Every divergence is cited: file path + line number in
 ## Usage
 
 ```ts
-import { payment, vaultCreate, nftokenCreateOffer } from 'xrpjs';
+import { payment, vaultCreate, nftokenCreateOffer } from 'xrpjson';
 
 // 1. Build a frozen, validated tx.
 const tx = payment({
@@ -155,8 +155,8 @@ If you need these, use the class-based [`xrplt`](https://github.com/Jonathan-Dob
 ## Development
 
 ```bash
-git clone https://github.com/Jonathan-Dobson/xrpjs.git
-cd xrpjs
+git clone https://github.com/Jonathan-Dobson/xrpjson.git
+cd xrpjson
 npm ci
 npm test        # run the 79 test files (2829 tests)
 npm run lint    # ESLint 9 flat config + typescript-eslint strict
@@ -174,10 +174,10 @@ MIT
 ## Related projects
 
 - [`xrplt`](https://github.com/Jonathan-Dobson/xrplt) — class-based
-  transaction builder, full v0.7.1 transaction coverage. `xrpjs` is the
-  fp refactor of `xrplt`'s functional subpath (`xrplt/fp`).
+  transaction builder, full v0.7.1 transaction coverage. `xrpjson` is
+  the fp refactor of `xrplt`'s functional subpath (`xrplt/fp`).
 - [xrpl.js](https://github.com/XRPLF/xrpl.js) — the canonical JavaScript
-  library; `xrpjs` uses xrpl.js as a devDep for test round-tripping
+  library; `xrpjson` uses xrpl.js as a devDep for test round-tripping
   (encode/decode).
 - [XRPL Standards](https://github.com/XRPLF/XRPL-Standards) — the
-  amendment specs `xrpjs` verifies against.
+  amendment specs `xrpjson` verifies against.
