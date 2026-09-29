@@ -1,0 +1,93 @@
+/**
+ * Functional AccountSet factory — frozen-object style.
+ *
+ * Companion prototype to payment.ts. Validates at construction, returns
+ * a frozen object with bound validate/toJSON/with methods.
+ */
+import { isNumber, isString } from '../../validation/helpers.js';
+import { buildFrozenTx, mergeForWith, require } from '../shape.js';
+
+export interface AccountSetProps {
+  Account: string;
+  /** Flag to clear on the account. */
+  ClearFlag?: number | undefined;
+  /** Domain name associated with this account (hex encoded). */
+  Domain?: string | undefined;
+  /** Email hash (e.g. for Gravatar). */
+  EmailHash?: string | undefined;
+  /** Message key for encrypted messaging. */
+  MessageKey?: string | undefined;
+  /** NFT collection fee (0-50,000). */
+  NFTokenBrokerFee?: number | undefined;
+  /** Flag to enable on the account. */
+  SetFlag?: number | undefined;
+  /** Transfer rate for issued currencies (drops per billion). */
+  TransferRate?: number | undefined;
+  /** Tick size for offer matching (3-15 or 0 to disable). */
+  TickSize?: number | undefined;
+  /** Bit-flags for this transaction. */
+  Flags?: number | undefined;
+  Fee?: string | undefined;
+  Sequence?: number | undefined;
+}
+
+export interface AccountSet
+  extends Readonly<AccountSetProps> {
+  readonly TransactionType: 'AccountSet';
+  validate(): void;
+  toJSON(): Record<string, unknown>;
+  with(overrides: Partial<AccountSetProps>): AccountSet;
+}
+
+export function accountSet(props: AccountSetProps): AccountSet {
+  // Validate optional fields when present
+  if (props.TransferRate !== undefined) {
+    require(
+      props.TransferRate,
+      'AccountSet: TransferRate must be a number',
+      isNumber,
+    );
+  }
+  if (props.TickSize !== undefined) {
+    require(
+      props.TickSize,
+      'AccountSet: TickSize must be a number',
+      isNumber,
+    );
+    if (
+      props.TickSize !== 0 &&
+      (props.TickSize < 3 || props.TickSize > 15)
+    ) {
+      throw new Error('AccountSet: TickSize must be 3-15 or 0');
+    }
+  }
+  if (props.Domain !== undefined) {
+    require(
+      props.Domain,
+      'AccountSet: Domain must be a string',
+      isString,
+    );
+  }
+
+  return buildFrozenTx<AccountSetProps, AccountSet>(
+    'AccountSet',
+    props,
+    {
+      validate(this: AccountSet) {
+        // Validated at construction.
+      },
+      toJSON(this: AccountSet) {
+        const json: Record<string, unknown> = {};
+        for (const k of Object.keys(this)) {
+          if (k === 'validate' || k === 'toJSON' || k === 'with') continue;
+          const v = (this as unknown as Record<string, unknown>)[k];
+          if (v !== undefined) json[k] = v;
+        }
+        return json;
+      },
+      with(this: AccountSet, overrides: Partial<AccountSetProps>) {
+        return accountSet(mergeForWith(this, overrides));
+      },
+    },
+  );
+}

@@ -1,0 +1,49 @@
+# Publishes the package to npm when a release is created.
+#
+# Uses Trusted Publishing (OIDC): no long-lived NPM_TOKEN secret required.
+# The package must be configured at https://www.npmjs.com/settings/<user>/<pkg>/trusted-publishers
+# to trust this workflow + repo + environment before publishing works.
+#
+# Why: npm now restricts bypass-2FA tokens for direct publishing, and
+# granular tokens don't have write on the package. Trusted Publishing is
+# the recommended path for GitHub Actions -> npmjs.org publishing.
+
+name: Node.js Package
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    # Pinned to 24.04 to opt out of the auto-migration notice to Ubuntu 26
+    # (transitioning 2026-10-19). Bump when the image we depend on is GA.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6.5.0
+        with:
+          node-version: 26
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+
+  publish-npm:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      # Required for npm provenance signing via OIDC.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6.5.0
+        with:
+          node-version: 26
+          registry-url: https://registry.npmjs.org/
+      - run: npm ci
+      - run: npm publish --provenance
+        # No NPM_TOKEN env var — the OIDC id-token above is exchanged
+        # for a short-lived npm publish token by setup-node@v6 when
+        # registry-url is set. Trusted Publisher config on npmjs.org
+        # must allow this workflow (repo + filename).

@@ -1,0 +1,67 @@
+{
+  "name": "xrpjs",
+  "version": "0.1.0",
+  "description": "Functional transaction factories for the XRP Ledger — 79 frozen-shape builders verified against xrpl.js, xrpl.org, and XLS specs.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./validation": {
+      "import": "./dist/validation/index.js",
+      "types": "./dist/validation/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --experimental-vm-modules node_modules/.bin/vitest run",
+    "test:watch": "node --experimental-vm-modules node_modules/.bin/vitest",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run lint && npm run test && npm run build"
+  },
+  "keywords": [
+    "xrp",
+    "xrpl",
+    "ripple",
+    "ledger",
+    "blockchain",
+    "crypto",
+    "transaction",
+    "builder",
+    "factory",
+    "functional",
+    "frozen-shape"
+  ],
+  "author": "Jonathan Dobson",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^25.6.2",
+    "eslint": "^9.39.5",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^3.2.1",
+    "xrpl": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jonathan-Dobson/xrpjs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Jonathan-Dobson/xrpjs/issues"
+  },
+  "homepage": "https://github.com/Jonathan-Dobson/xrpjs#readme"
+}

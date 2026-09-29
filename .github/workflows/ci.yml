@@ -1,0 +1,21 @@
+# Continuous integration: runs on every push and PR. Mirrors the
+# build job from npm-publish.yml but skips the publish step.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6.5.0
+        with:
+          node-version: 26
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
