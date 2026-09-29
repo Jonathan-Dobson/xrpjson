@@ -1,14 +1,14 @@
 {
   "name": "xrpjson",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Functional transaction factories for the XRP Ledger — 79 frozen-shape builders verified against xrpl.js, xrpl.org, and XLS specs.",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/fp/index.js",
+  "types": "./dist/fp/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": "./dist/fp/index.js",
+      "types": "./dist/fp/index.d.ts"
     },
     "./validation": {
       "import": "./dist/validation/index.js",
