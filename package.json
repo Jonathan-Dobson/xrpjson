@@ -55,6 +55,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/node": "^25.6.2",
+    "codebase-semantic-search": "^0.2.5",
     "eslint": "^9.39.5",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.1",
