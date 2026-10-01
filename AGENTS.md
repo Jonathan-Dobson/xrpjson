@@ -66,15 +66,29 @@ reindexing.
 
 ### Known tooling defects in `codebase-semantic-search@0.2.5`
 
-Neither is fixable in this repo without patching `node_modules` or upgrading:
+Neither is fixable in this repo without patching `node_modules` or upgrading.
+Both below were measured against a clean `--full` rebuild of this repo
+(570 chunks across 96 files).
 
-- `codebase_stats` reports `chunkCount: 0` immediately after a successful
-  `--full` rebuild (a flush/timing bug). Search itself works — do not conclude
-  the collection is empty from that number.
-- The chunker emits some content twice under different ids — the header chunk
-  uses `hashId(path, 1)` (`dist/chunker.js`) while a node chunk uses
-  `hashId(path, node.start)` — so searches return repeated or mismatched line
-  ranges. Roughly 10% of a top-20 result set.
+- `codebase_stats` and the CLI's "Done! N total chunks" line report `0` right
+  after a successful `--full` rebuild — it reads the collection before Milvus
+  flushes. The rows are there. Confirm with a real `codebase_semantic_search`
+  call or a direct `query`, never with the counter.
+- **Line ranges are systematically short.** The chunker attaches a node's
+  leading comment — its JSDoc block, and sometimes the `// ─── Section ───`
+  banner above that — to the stored `content`, but records `start_line` /
+  `endLine` at the bare declaration. Measured over all 570 chunks: 26.5%
+  exact, 41.9% off by 2–5 lines, **14.0% off by more than 5**. Example:
+  `offer-create.ts:176-178` is `isXrplNumber`, but the stored content actually
+  begins at the section banner on line 169. A search hit's line range therefore
+  lands *after* the docstring that explains it. Read a few lines above the
+  reported range, or use `codebase_clip` to get the content search already
+  returned.
+
+There are **no duplicate chunks**: a clean rebuild yields 570 rows with zero
+duplicate ids, zero duplicate `(file_path, start_line)`, and 96 distinct files.
+Duplicate hits seen earlier were a side effect of the lost state file above, not
+a chunker bug — `--full` clears them.
 
 ## Using it
 
