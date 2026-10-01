@@ -18,6 +18,13 @@ node_modules/
 # Optional eslint cache
 .eslintcache
 
+# codesearch incremental-index bookkeeping. Local only: it is session
+# bootstrap state for the agent, and the index itself lives in the Milvus
+# volume. Never commit it — tracking it on one branch only means switching
+# branches deletes it, and the next incremental reindex then re-upserts
+# every file without pruning the stale chunks.
+.search-index-state.json
+
 # Output
 dist
 .vite/

@@ -114,24 +114,33 @@ content had left its file.
 mis-routed a user's typo into its "unexpected bug" branch. Both corrected,
 with regression tests asserting the type.
 
+### 7. One citation named a type in a file that does not define it
+
+`nftoken-cancel-offer.ts` cited `xrpl.org common-fields.md Hash256` as the
+authority for the 64-char hex encoding of `NFTokenOffers`. There are two files
+named `common-fields.md` (`transactions/` and `ledger-data/`), and **neither
+contains the string `Hash256`** — verified by grep across the pinned mirror.
+
+The claim was sound but the type name was wrong on two counts. The field is
+the `VECTOR256` **array**, not a scalar `Hash256`: XLS-20 §1.5.5 line 738 gives
+`array` / `VECTOR256`, and xrpl.org's Fields table line 46 gives `Array` /
+`Vector256`. `Hash256` describes an *element*. XLS-20 uses the scalar `Hash256`
+name at line 682 — but for the offer's `NFTokenID`, a different field.
+
+Re-sourced to `binary-format.md` line 436, the only place the type is actually
+defined: `Hash256` is the legacy name for `UInt256`, which "is typically
+represented in JSON as hexadecimal" (64 chars). The runtime error string keeps
+`(Hash256)`, which is correct there — it annotates a single indexed element.
+
 ---
 
 ## Known open items
 
-1. **`Hash256` in `nftoken-cancel-offer.ts`** — cited as
-   `xrpl.org common-fields.md Hash256`. That file contains neither the term nor
-   any NFToken field; there are two files by that name, under `transactions/`
-   and `ledger-data/`, and neither defines the type. The claim itself is sound
-   but mislabelled: `Hash256` is the legacy alias for `UInt256`
-   (`binary-format.md` line 436), XLS-20 uses `Hash256` (line 682) while
-   xrpl.org uses `UInt256` / `Vector256` (`nftokencreateoffer.md` line 39,
-   `nftokencanceloffer.md` line 46). The field is a `VECTOR256` *array* of
-   offer IDs, not a scalar `Hash256`. Re-source and correct the type name.
-2. **38 `AMBIGUOUS_FILENAME` citations** — 37 resolved by content during the
+1. **38 `AMBIGUOUS_FILENAME` citations** — 37 resolved by content during the
    audit; the resolutions were verified but the checker still reports them as
    ambiguous, so a re-run will keep flagging them until its disambiguation is
    improved.
-3. **Citations inside runtime error messages** — five factories embed spec
+2. **Citations inside runtime error messages** — five factories embed spec
    references in thrown error strings. **Decision: keep them for now.** The
    error tells a developer which rule they broke, which is the package's whole
    thesis. The cost is that citation accuracy becomes a runtime concern and
