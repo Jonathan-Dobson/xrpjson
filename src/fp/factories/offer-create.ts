@@ -5,7 +5,7 @@
  * equivalent requires a separate `.validate()` call after construction;
  * this factory validates at construction so an invalid tx can never exist.
  *
- *   import { offerCreate } from 'xrplt/fp';
+ *   import { offerCreate } from 'xrpjson';
  *   const tx = offerCreate({ Account, TakerGets: '1000000', TakerPays: { … } });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Expiration: 770000000 });
@@ -15,7 +15,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/offer-create.ts`, this factory adds
+ * Compared with the Class API's `OfferCreate`, this factory adds
  * guards the class skips and fixes a flag-value bug:
  *
  * - **The class hard-codes `tfHybrid = 0x00400000` in `validate()` but

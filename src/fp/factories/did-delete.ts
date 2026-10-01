@@ -9,7 +9,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { didDelete } from 'xrplt/fp';
+ *   import { didDelete } from 'xrpjson';
  *   const tx = didDelete({ Account });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Fee: '12' });
@@ -23,7 +23,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/did-delete.ts` and xrpl.js's
+ * The class-based API at the Class API's `DIDDelete` and xrpl.js's
  * `validateDIDDelete` both skip three rules that the canonical sources
  * require. The factory fills them:
  *

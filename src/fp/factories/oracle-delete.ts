@@ -5,7 +5,7 @@
  * send this transaction. Validation happens at construction; there is no
  * way to construct an invalid tx.
  *
- *   import { oracleDelete } from 'xrplt/fp';
+ *   import { oracleDelete } from 'xrpjson';
  *   const tx = oracleDelete({ Account, OracleDocumentID: 34 });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Fee: '15' });
@@ -20,7 +20,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/oracle-delete.ts` and xrpl.js's
+ * The class-based API at the Class API's `OracleDelete` and xrpl.js's
  * `validateOracleDelete` both skip two rules that the canonical sources
  * require. The factory fills them:
  *

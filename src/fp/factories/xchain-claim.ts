@@ -6,7 +6,7 @@
  * delivered for a corresponding `XChainCommit` transaction. Validation
  * happens at construction; there is no way to construct an invalid tx.
  *
- *   import { xchainClaim } from 'xrplt/fp';
+ *   import { xchainClaim } from 'xrpjson';
  *   const tx = xchainClaim({
  *     Account,
  *     Amount: '10000',
@@ -32,7 +32,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/xchain-claim.ts`, this factory adds
+ * Compared with the Class API's `XChainClaim`, this factory adds
  * guards the class skips (or that xrpl.js / xrpl.org / XLS-38 mandate
  * but the class omits):
  *
@@ -54,7 +54,7 @@
  *   §2.3.4.1.3 line 548 defines `Destination` as `ACCOUNT`.
  *   - Source: xrpl.js `XChainClaim.ts` line 74.
  *   - Source: xrpl.org `xchainclaim.md` line 47.
- *   - Source: XLS-38 §2.3.4.1.3 line 548.
+ *   - Source: XLS-38 §2.3.4.1.3 line 547.
  *   - Cross-ref: rippled parses `Destination` as `STAccount`; only
  *     valid XRPL classic addresses parse.
  *

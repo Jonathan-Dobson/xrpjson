@@ -5,7 +5,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { xchainCommit } from 'xrplt/fp';
+ *   import { xchainCommit } from 'xrpjson';
  *   const tx = xchainCommit({
  *     Account,
  *     Amount: '10000',
@@ -32,7 +32,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/xchain-commit.ts`, this factory adds
+ * Compared with the Class API's `XChainCommit`, this factory adds
  * guards the class skips (or that xrpl.js / xrpl.org / XLS-38 mandate
  * but the class omits):
  *
@@ -85,14 +85,14 @@
  * - **`OtherChainDestination` is optional, but when present must be a
  *   valid XRPL classic / X-address.** XLS-38 §2.3.2.1.4 line 422
  *   defines it as `ACCOUNT` and marks the field OPTIONAL. xrpl.org
- *   `xchaincommit.md` line 50 confirms `Required? No`. xrpl.js
+ *   `xchaincommit.md` line 47 confirms `Required? No`. xrpl.js
  *   `validateXChainCommit` line 73 calls
  *   `validateOptionalField(tx, 'OtherChainDestination', isAccount)`.
  *   The class declares `OtherChainDestination?: string | undefined`
  *   without any `isAccount` check; any string passes. The factory
  *   enforces the XRPL-account format when present.
  *   - Source: xrpl.js `XChainCommit.ts:46,73`.
- *   - Source: xrpl.org `xchaincommit.md` line 50 (No).
+ *   - Source: xrpl.org `xchaincommit.md` line 47 (No).
  *   - Source: XLS-38 §2.3.2.1.4 line 422 (`ACCOUNT`, no required check).
  *
  * - **`Amount` must be strictly positive.** The class delegates to
@@ -115,7 +115,7 @@
  *   wire format). The class's `isAmount` only checks structural keys;
  *   it does not validate `issuer` against `isAccount` or `value`
  *   against the decimal regex.
- *   - Source: rippled `Amount.cpp` (parses `issuer` as `STAccount`).
+ *   - Source: rippled `STAmount.cpp` (parses `issuer` as `STAccount`).
  *   - Source: rippled `STAmount.cpp` (parses `value` as decimal
  *     integer string).
  *

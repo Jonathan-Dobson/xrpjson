@@ -11,7 +11,7 @@
  * an invalid tx. Compare to the class-based equivalent, which exposes
  * a separate `.validate()` method you must remember to call.
  *
- *   import { confidentialMptMergeInbox } from 'xrplt/fp';
+ *   import { confidentialMptMergeInbox } from 'xrpjson';
  *   const tx = confidentialMptMergeInbox({ Account, MPTokenIssuanceID });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Fee: '100' });
@@ -25,7 +25,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/confidential-mpt-merge-inbox.ts`,
+ * Compared with the Class API's `ConfidentialMPTMergeInbox`,
  * this factory adds guards the class skips — and is documented where
  * additional canonical guards cannot be added in a zero-dependency
  * package.

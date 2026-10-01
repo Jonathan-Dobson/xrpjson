@@ -32,7 +32,7 @@ tree-shaking).
 
 ## What it covers
 
-**79 transaction types** (every class in v0.7.1's `src/transactions/`,
+**79 transaction types** (the full Class API transaction set,
 including the XLS-38d Sidechain family):
 
 - **Account:** `accountDelete`, `accountSet`
@@ -66,7 +66,7 @@ including the XLS-38d Sidechain family):
 ## What it adds over the class API
 
 Every factory file ships a `## Divergences` header listing the guards it
-adds beyond `src/transactions/<TxName>.ts`. Examples:
+adds beyond the Class API's equivalent. Examples:
 
 - **`vaultCreate`**: rejects `VaultID === '00…00'` (64-char all-zero
   hex would fail at the ledger with `temMALFORMED`); `Amount` must be
@@ -144,13 +144,13 @@ landing:
 When the three sources disagree, the XLS spec wins. The factory
 documents the divergence with citation.
 
-## Out of scope (vs. the class-based `xrplt` package)
+## Out of scope
 
 - Pseudo-transactions: `EnableAmendment`, `LedgerEntry` (state query)
 - Deprecated: `UNLModify`
-- Future amendments not enabled in v0.7.1: `SetFee` (XRPL hook amendment)
+- Future amendments not yet enabled on the ledger: `SetFee` (XRPL hook amendment)
 
-If you need these, use the class-based [`xrplt`](https://github.com/Jonathan-Dobson/xrplt) package.
+These are outside the scope of this package.
 
 ## Development
 
@@ -158,7 +158,7 @@ If you need these, use the class-based [`xrplt`](https://github.com/Jonathan-Dob
 git clone https://github.com/Jonathan-Dobson/xrpjson.git
 cd xrpjson
 npm ci
-npm test        # run the 79 test files (2829 tests)
+npm test        # run the test suite
 npm run lint    # ESLint 9 flat config + typescript-eslint strict
 npm run build   # tsc → dist/
 ```
@@ -167,15 +167,28 @@ Tests use `vitest`. The factories are pure ESM with TypeScript strict
 mode (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, etc.).
 No runtime dependencies.
 
+### Agent workflow
+
+[`AGENTS.md`](./AGENTS.md) holds the standing rules for working in this repo:
+branch policy — including the `semantic-codesearch` branch and the rule that it
+is never merged into `main` — plus how to keep the local semantic-search index
+fresh. Read it before your first change.
+
+### Project documentation
+
+| Document | What it is |
+|---|---|
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | How to add a factory — the three-source verification loop, the `## Divergences` format, and the citation conventions |
+| [`CONTEXT.md`](./CONTEXT.md) | Glossary of the terms the factory docstrings use without defining — *frozen tx*, *divergence*, *preclaim*, *Class API*, *Source* vs *Cross-ref* |
+| [`docs/adr/`](./docs/adr/) | Architecture decisions: functional API over the class API, the frozen shape, XLS-spec precedence, and the rippled citation convention |
+| [`docs/audit/`](./docs/audit/) | Citation audits — what was checked, against which pinned sources, and what was corrected |
+
 ## License
 
 MIT
 
 ## Related projects
 
-- [`xrplt`](https://github.com/Jonathan-Dobson/xrplt) — class-based
-  transaction builder, full v0.7.1 transaction coverage. `xrpjson` is
-  the fp refactor of `xrplt`'s functional subpath (`xrplt/fp`).
 - [xrpl.js](https://github.com/XRPLF/xrpl.js) — the canonical JavaScript
   library; `xrpjson` uses xrpl.js as a devDep for test round-tripping
   (encode/decode).

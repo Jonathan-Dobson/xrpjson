@@ -8,7 +8,7 @@
  * "create"). Validation happens at construction; there is no way to
  * construct an invalid tx.
  *
- *   import { loanBrokerSet } from 'xrplt/fp';
+ *   import { loanBrokerSet } from 'xrpjson';
  *   // Create
  *   const tx = loanBrokerSet({ Account, VaultID });
  *   // Update (must not change fixed fields)
@@ -31,7 +31,7 @@
  * ## Divergences
  *
  * The factory enforces four preclaim checks that the class API
- * (`src/transactions/loan-broker-set.ts`) and xrpl.js's
+ * (the Class API's `LoanBrokerSet`) and xrpl.js's
  * `validateLoanBrokerSet` both skip. Each one comes from a named check in
  * XLS-66 §3.3.3.1.
  *

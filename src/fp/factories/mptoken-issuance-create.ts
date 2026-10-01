@@ -5,7 +5,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { mptokenIssuanceCreate } from 'xrplt/fp';
+ *   import { mptokenIssuanceCreate } from 'xrpjson';
  *   const tx = mptokenIssuanceCreate({ Account, AssetScale: 2, MaximumAmount: '1000000' });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ TransferFee: 100 });

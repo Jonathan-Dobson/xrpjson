@@ -6,7 +6,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { credentialCreate } from 'xrplt/fp';
+ *   import { credentialCreate } from 'xrpjson';
  *   const tx = credentialCreate({
  *     Account: issuerAddr,
  *     Subject: subjectAddr,
@@ -22,7 +22,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/credential-create.ts` is
+ * The class-based API at the Class API's `CredentialCreate` is
  * missing several rules the canonical sources require AND exposes one
  * field that is not in the spec at all. The factory corrects both:
  *

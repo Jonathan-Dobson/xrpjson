@@ -5,7 +5,7 @@
  * `SendMax` of the source currency. Validation happens at construction;
  * there is no way to construct an invalid tx.
  *
- *   import { checkCreate } from 'xrplt/fp';
+ *   import { checkCreate } from 'xrpjson';
  *   const tx = checkCreate({ Account, Destination, SendMax });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Expiration: 570113521 });
@@ -14,7 +14,7 @@
  *
  * ## Divergences
  * The factory enforces five preclaim guards that the class API
- * (`src/transactions/check-create.ts`) skips. The class only checks
+ * (the Class API's `CheckCreate`) skips. The class only checks
  * type — it does not check ranges, semantic equivalence, or self-send.
  *
  *   1. `Destination` must not equal `Account` (self-send is rejected).

@@ -4,7 +4,7 @@
  * The Borrower submits a `LoanPay` to make a payment on a Loan. Validation
  * happens at construction; there is no way to construct an invalid tx.
  *
- *   import { loanPay } from 'xrplt/fp';
+ *   import { loanPay } from 'xrpjson';
  *   const tx = loanPay({ Account, LoanID, Amount: '1000000' });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Flags: 0x00010000 });
@@ -26,7 +26,7 @@
  *
  * ## Divergences
  * The factory enforces three preclaim checks that the class API
- * (`src/transactions/loan-pay.ts`) skips:
+ * (the Class API's `LoanPay`) skips:
  *
  *   1. `LoanID` must not be the all-zeros HASH256 value.
  *      Source: XLS-66 §3.11.4.1 check 1 — "`LoanID` is zero (`temINVALID`)".

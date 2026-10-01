@@ -5,7 +5,7 @@
  * sending account. Validation happens at construction; there is no way
  * to construct an invalid tx.
  *
- *   import { setRegularKey } from 'xrplt/fp';
+ *   import { setRegularKey } from 'xrpjson';
  *   const tx = setRegularKey({ Account, RegularKey });
  *   tx.validate();   // throws if construction didn't already
  *   const j = tx.toJSON();
@@ -19,7 +19,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/set-regular-key.ts` is
+ * The class-based API at the Class API's `SetRegularKey` is
  * missing one rule that the canonical sources require. The factory
  * fills it:
  *

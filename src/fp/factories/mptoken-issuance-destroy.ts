@@ -6,7 +6,7 @@
  * non-zero balances. Validation happens at construction; there is no
  * way to construct an invalid tx.
  *
- *   import { mptokenIssuanceDestroy } from 'xrplt/fp';
+ *   import { mptokenIssuanceDestroy } from 'xrpjson';
  *   const tx = mptokenIssuanceDestroy({ Account, MPTokenIssuanceID });
  *   const j = tx.toJSON();
  *
@@ -23,7 +23,7 @@
  * ## Divergences
  *
  * The factory enforces three preclaim checks that the class API
- * (`src/transactions/mptoken-issuance-destroy.ts`) and xrpl.js both skip:
+ * (the Class API's `MPTokenIssuanceDestroy`) and xrpl.js both skip:
  *
  *   1. `MPTokenIssuanceID` must be a 48-character hex string (24 bytes /
  *      UINT192). The class only calls `isString(this.MPTokenIssuanceID)`,

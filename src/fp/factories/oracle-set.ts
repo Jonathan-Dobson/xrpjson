@@ -5,7 +5,7 @@
  * identified by `(Account, OracleDocumentID)`. Validation happens at
  * construction; there is no way to construct an invalid tx.
  *
- *   import { oracleSet } from 'xrplt/fp';
+ *   import { oracleSet } from 'xrpjson';
  *   const tx = oracleSet({
  *     Account,
  *     OracleDocumentID: 34,
@@ -27,7 +27,7 @@
  * ## Divergences
  *
  * The factory enforces six preclaim guards the class API
- * (`src/transactions/oracle-set.ts`) skips:
+ * (the Class API's `OracleSet`) skips:
  *
  *   1. `PriceDataSeries` array length capped at 10 elements.
  *      Source: XLS-47 §"Transaction for creating or updating PriceOracle
@@ -71,7 +71,7 @@
  *
  * ## Field name divergences from the class
  *
- * The class source (`src/transactions/oracle-set.ts`) declares two
+ * The class source (the Class API's `OracleSet`) declares two
  * top-level fields — `AssetBase` and `AssetQuote` — that do NOT exist
  * in either XLS-47 or xrpl.js 5.3.0. The spec/xrpl.js model puts those
  * identifiers INSIDE each `PriceDataSeries[i].PriceData` element, named

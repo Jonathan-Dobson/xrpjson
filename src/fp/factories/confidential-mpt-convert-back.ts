@@ -12,7 +12,7 @@
  * invalid tx. Compare to the class-based equivalent, which exposes a
  * separate `.validate()` method you must remember to call.
  *
- *   import { confidentialMptConvertBack } from 'xrplt/fp';
+ *   import { confidentialMptConvertBack } from 'xrpjson';
  *   const tx = confidentialMptConvertBack({
  *     Account,
  *     MPTokenIssuanceID,
@@ -35,7 +35,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/confidential-mpt-convert-back.ts`, this
+ * Compared with the Class API's `ConfidentialMPTConvertBack`, this
  * factory adds guards the class skips — and is explicit about the
  * canonical guards it cannot enforce in a zero-dependency package.
  *

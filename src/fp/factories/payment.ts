@@ -1,15 +1,15 @@
 /**
  * Functional Payment factory — frozen-object style.
  *
- *   import { payment } from 'xrplt/fp';
+ *   import { payment } from 'xrpjson';
  *   const tx = payment({ Account, Destination, Amount });
  *   tx.validate();   // throws if construction didn't already
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Fee: '12', Sequence: 42 });
  *
- * Compare with the class-based equivalent:
+ * Compare with the class-based equivalent, where fields are assigned to
+ * an instance and validate() must be called explicitly:
  *
- *   import { Payment } from 'xrplt';
  *   const tx = new Payment({ Account, Destination, Amount });
  *   tx.validate();   // must be called explicitly
  *   const j = tx.toJSON();
@@ -27,6 +27,7 @@ import type { Amount } from '../../types/amounts.js';
 import type { PathStep } from '../../types/common.js';
 import type { PaymentFlagsInterface } from '../../types/flags.js';
 import { isAccount, isAmount } from '../../validation/helpers.js';
+import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Public types ────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ export function payment(props: PaymentProps): Payment {
         ? (f & 0x00020000) !== 0
         : (f as PaymentFlagsInterface | undefined)?.tfPartialPayment;
     if (!hasPartialFlag) {
-      throw new Error(
+      throw new ValidationError(
         'Payment: DeliverMin requires tfPartialPayment flag',
       );
     }

@@ -8,7 +8,7 @@
  * resulting `XChainClaimID`. Validation happens at construction; there
  * is no way to construct an invalid tx.
  *
- *   import { xchainCreateClaimID } from 'xrplt/fp';
+ *   import { xchainCreateClaimID } from 'xrpjson';
  *   const tx = xchainCreateClaimID({
  *     Account: 'rahDmoXrtPdh7sUdrPjini3gcnTVYjbjjw',
  *     OtherChainSource: 'rMTi57fNy2UkUb4RcdoUeJm7gjxVQvxzUo',
@@ -35,7 +35,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/xchain-create-claim-id.ts`, this
+ * Compared with the Class API's `XChainCreateClaimID`, this
  * factory adds guards the class skips (or that xrpl.js / xrpl.org /
  * XLS-38 / rippled mandate but the class omits):
  *
@@ -50,7 +50,7 @@
  *     `validateBaseTransaction`.
  *   - Cross-ref: rippled parses `Account` as `STAccount`; only valid
  *     XRPL classic addresses parse. xrpl.org `xchaincreateclaimid.md`
- *     example line 20 lists `Account` as a classic address.
+ *     example line 25 lists `Account` as a classic address.
  *
  * - **`XChainBridge` is fully shape-validated.** xrpl.js
  *   `validateXChainCreateClaimID` line 47 calls
@@ -90,8 +90,8 @@
  *   string, IOU object, or MPT object. XLS-38 §2.3.1.1.2 line 398
  *   states: "The amount, **in XRP**, to be used to reward the witness
  *   servers for providing signatures." xrpl.org
- *   `xchaincreateclaimid.md` line 45 calls it a `Currency Amount`
- *   (per the JSON type column) but the example JSON (line 22) uses
+ *   `xchaincreateclaimid.md` line 48 calls it a `Currency Amount`
+ *   (per the JSON type column) but the example JSON (line 28) uses
  *   `"SignatureReward": "100"` (XRP drops string form), and the
  *   description immediately after the table says "in XRP". rippled's
  *   `XChainCreateClaimID::preflight` enforces `isXRP(reward) &&
@@ -100,7 +100,7 @@
  *   factory mirrors this with a strict XRP drops string check, ≥ 0
  *   (zero is permitted; a bridge may opt out of witness payment).
  *   - Source: XLS-38 §2.3.1.1.2 line 398 ("in XRP").
- *   - Source: xrpl.org `xchaincreateclaimid.md` line 45 + example line
+ *   - Source: xrpl.org `xchaincreateclaimid.md` line 48 + example line
  *     22 (`"SignatureReward": "100"`).
  *   - Source: rippled `XChainBridge.cpp` lines 1961–1969
  *     (`isXRP(reward) && signum() >= 0 && isLegalNet(reward)` →
@@ -116,14 +116,14 @@
  * - **`OtherChainSource` must be a valid XRPL classic / X-address.**
  *   The class declares the field as `readonly OtherChainSource: string`
  *   but never validates it. xrpl.js `validateXChainCreateClaimID`
- *   line 49 calls `validateRequiredField(tx, 'OtherChainSource',
- *   isAccount)`. xrpl.org `xchaincreateclaimid.md` line 44 marks it
- *   `String - Address / AccountID`; XLS-38 §2.3.1.1.3 line 402 defines
+ *   line 53 calls `validateRequiredField(tx, 'OtherChainSource',
+ *   isAccount)`. xrpl.org `xchaincreateclaimid.md` line 47 marks it
+ *   `String - Address / AccountID`; XLS-38 §2.3.1.1.3 line 401 defines
  *   it as `ACCOUNT`. rippled parses it as `STAccount`. The factory
  *   enforces XRPL address format at construction.
- *   - Source: xrpl.js `XChainCreateClaimID.ts` line 49 (`isAccount`).
- *   - Source: xrpl.org `xchaincreateclaimid.md` line 44 (`AccountID`).
- *   - Source: XLS-38 §2.3.1.1.3 line 402 (`ACCOUNT` internal type).
+ *   - Source: xrpl.js `XChainCreateClaimID.ts` line 53 (`isAccount`).
+ *   - Source: xrpl.org `xchaincreateclaimid.md` line 47 (`AccountID`).
+ *   - Source: XLS-38 §2.3.1.1.3 line 401 (`ACCOUNT` internal type).
  *   - Cross-ref: rippled parses `OtherChainSource` as `STAccount`; only
  *     valid XRPL classic addresses parse.
  *
@@ -273,7 +273,7 @@ export function xchainCreateClaimID(
   // ── SignatureReward ── required, non-negative XRP drops string.
   if (!isNonNegativeXrpAmount(props.SignatureReward)) {
     throw new ValidationError(
-      'XChainCreateClaimID: SignatureReward must be a non-negative XRP drops string (in XRP, ≥ 0; XLS-38 §2.3.1.1.2 line 398)',
+      'XChainCreateClaimID: SignatureReward must be a non-negative XRP drops string (in XRP, ≥ 0; XLS-38 §2.3.1.1.2 line 397)',
     );
   }
 

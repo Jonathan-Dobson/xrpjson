@@ -1,5 +1,5 @@
 /**
- * Custom error types for the xrplt package.
+ * Custom error types for the xrpjson package.
  *
  * These are standalone — no dependency on xrpl's error hierarchy.
  */
@@ -18,7 +18,10 @@ export class ValidationError extends Error {
 }
 
 /**
- * Thrown when a transaction operation fails (e.g. unknown type in registry).
+ * Part of the public `xrpjson/errors` surface. No factory in this
+ * package throws it — every eager-validation failure throws
+ * `ValidationError` instead. Retained rather than removed because it is
+ * exported API and callers may already catch it.
  */
 export class TransactionError extends Error {
   override readonly name = 'TransactionError';

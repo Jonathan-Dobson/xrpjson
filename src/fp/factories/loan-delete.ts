@@ -6,7 +6,7 @@
  * locally checkable here). Validation happens at construction; there is
  * no way to construct an invalid tx.
  *
- *   import { loanDelete } from 'xrplt/fp';
+ *   import { loanDelete } from 'xrpjson';
  *   const tx = loanDelete({ Account, LoanID });
  *   const j = tx.toJSON();
  *
@@ -27,7 +27,7 @@
  *      xrpl-dev-portal `loandelete.md` error table: "`temINVALID` — The
  *      `LoanID` is missing or set to zero."
  *
- * The class API (`src/transactions/loan-delete.ts`) only checks
+ * The class API (the Class API's `LoanDelete`) only checks
  * `isHex` + 64-char length, which the all-zeros string satisfies.
  * xrpl.js's `validateLoanDelete` (in `packages/xrpl/src/models/
  * transactions/loanDelete.ts`) likewise only calls `isLedgerEntryId`,

@@ -5,7 +5,7 @@
  * submit this transaction. Validation happens at construction; there is
  * no way to construct an invalid tx.
  *
- *   import { credentialDelete } from 'xrplt/fp';
+ *   import { credentialDelete } from 'xrpjson';
  *   const tx = credentialDelete({ Account, Subject, CredentialType });
  *   const j = tx.toJSON();
  *
@@ -18,7 +18,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/credential-delete.ts` and
+ * The class-based API at the Class API's `CredentialDelete` and
  * xrpl.js's `validateCredentialDelete` both diverge from the XLS-0070
  * spec on two rules. The factory fills both gaps.
  *
@@ -58,7 +58,7 @@
  *          (`~/.mavis/docs.local/xrpl-dev-portal/repo/docs/references/
  *          protocol/transactions/types/credentialdelete.md`): "You
  *          must provide the `Subject` field, `Issuer` field, or both."
- *        - Local class at `src/transactions/credential-delete.ts`
+ *        - Local class at the Class API's `CredentialDelete`
  *          (lines 9–17 and 37–38 — both declared required and both
  *          validated as required).
  *
@@ -94,7 +94,7 @@
  *          copy-paste error from the `URI` field table; XLS-0070
  *          §2.1.3 and xrpl.js both cap at 64 bytes / 128 hex chars.
  *          The factory follows the standard + xrpl.js.)
- *        - Local class at `src/transactions/credential-delete.ts`
+ *        - Local class at the Class API's `CredentialDelete`
  *          (line 39 — only `isString`).
  *
  * The factory also validates `Account` as a well-formed XRPL

@@ -9,7 +9,7 @@
  * ledger). Validation happens at construction; there is no way to
  * construct an invalid tx.
  *
- *   import { xchainModifyBridge } from 'xrplt/fp';
+ *   import { xchainModifyBridge } from 'xrpjson';
  *   const tx = xchainModifyBridge({
  *     Account: 'rhWQzvdmhf5vFS35vtKUSUwNZHGT53qQsg',
  *     XChainBridge: { ... },
@@ -35,7 +35,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/xchain-modify-bridge.ts`, this factory
+ * Compared with the Class API's `XChainModifyBridge`, this factory
  * adds guards the class skips (or that xrpl.js / xrpl.org / XLS-38
  * mandate but the class omits):
  *
@@ -55,7 +55,7 @@
  *     door account.
  *
  * - **`XChainBridge` is fully shape-validated.** xrpl.js
- *   `validateXChainModifyBridge.ts:72` calls
+ *   `XChainModifyBridge.ts:72` calls
  *   `validateRequiredField(tx, 'XChainBridge', isXChainBridge)`,
  *   which requires exactly 4 keys, two `AccountID` door strings, and
  *   two `Issue` currency objects. Our class only verifies `isRecord`,
@@ -82,7 +82,7 @@
  *   create-bridge and modify-bridge): "The total amount, **in XRP**, to
  *   be rewarded for providing a signature for a cross-chain transfer or
  *   for signing for the cross-chain reward." xrpl.js
- *   `validateXChainModifyBridge.ts:74` only runs `isAmount`, which
+ *   `XChainModifyBridge.ts:74` only runs `isAmount`, which
  *   accepts any of: XRP drops string, IOU object, or MPT object. The
  *   factory enforces XRP-only (drops string) with `≥ 0`, matching the
  *   XLS-38 wording and rippled's `STAmount` parse for `sfSignatureReward`.
@@ -101,7 +101,7 @@
  *   XRP**, required for a `XChainAccountCreateCommit` transaction.
  *   ... **This field can only be present on XRP-XRP bridges.**" XLS-38
  *   §2.1.1.1.4 line 204 repeats the same. The class accepts any string;
- *   xrpl.js's `validateXChainModifyBridge.ts:76` does the same. The
+ *   xrpl.js's `XChainModifyBridge.ts:76` does the same. The
  *   factory rejects IOU/MPT forms and non-canonical wire forms (leading
  *   zeros, decimals, exponents) at construction.
  *   - Source: xrpl.org `xchainmodifybridge.md` line 48 ("in XRP";

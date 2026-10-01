@@ -5,14 +5,14 @@
  * transactions (`RawTransactions`) into a single atomic submission. The
  * factory validates at construction; an invalid Batch can never exist.
  *
- *   import { batch } from 'xrplt/fp';
+ *   import { batch } from 'xrpjson';
  *   const tx = batch({ Account, Flags, RawTransactions: [...] });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Flags: 0x00020000 }); // tfOnlyOne
  *
- * Compare with the class-based equivalent:
+ * Compare with the class-based equivalent, where fields are assigned to
+ * an instance and validate() must be called explicitly:
  *
- *   import { Batch } from 'xrplt';
  *   const tx = new Batch({ Account, Flags, RawTransactions: [...] });
  *   tx.validate();   // must be called explicitly
  *
@@ -20,8 +20,8 @@
  * @see https://github.com/XRPLF/XRPL-Standards/tree/master/XLS-0056-batch
  *
  * ## Divergences
- * The factory enforces seven preclaim checks that the class API
- * (`src/transactions/batch.ts`) explicitly skips. Each is documented
+ * The factory enforces eight preclaim checks that the class API
+ * (the Class API's `Batch`) explicitly skips. Each is documented
  * inline with the corresponding citation.
  *
  *   1. `RawTransactions` length must be **2–8** (class: only non-empty).
@@ -35,7 +35,7 @@
  *      Source: XLS-56 §2.1.1 — "Exactly one must be specified in a Batch
  *      transaction." Cross-checked against xrpl.org error table for
  *      `temINVALID_FLAG` (first clause). The class source comment
- *      (`src/transactions/batch.ts:33-38`) explicitly defers this to the
+ *      (the Class API's `Batch`, lines 33-38) explicitly defers this to the
  *      ledger.
  *
  *   3. Each inner transaction must set **either** `Sequence` (non-zero)

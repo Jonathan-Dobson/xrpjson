@@ -5,7 +5,7 @@
  * ledger entry to back the vault against loan defaults. Validation happens
  * at construction; there is no way to construct an invalid tx.
  *
- *   import { loanBrokerCoverDeposit } from 'xrplt/fp';
+ *   import { loanBrokerCoverDeposit } from 'xrpjson';
  *   const tx = loanBrokerCoverDeposit({ Account, LoanBrokerID, Amount });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Amount: { currency: 'USD', issuer, value: '1500' } });
@@ -21,7 +21,7 @@
  * ## Divergences
  *
  * The factory enforces two preclaim checks that the class API
- * (`src/transactions/loan-broker-cover-deposit.ts`) skips:
+ * (the Class API's `LoanBrokerCoverDeposit`) skips:
  *
  *   1. `LoanBrokerID` must not be the all-zeros HASH256 value.
  *      Source: XLS-66 §3.5.3.1 check 1 — "`LoanBrokerID` is zero (`temINVALID`)"

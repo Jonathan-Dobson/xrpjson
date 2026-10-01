@@ -4,7 +4,7 @@
  * Creates a new NFToken (NFT) on the ledger. Validation happens at
  * construction; there is no way to construct an invalid tx.
  *
- *   import { nftokenMint } from 'xrplt/fp';
+ *   import { nftokenMint } from 'xrpjson';
  *   const tx = nftokenMint({ Account, NFTokenTaxon: 0 });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ TransferFee: 314, Flags: { tfTransferable: true } });
@@ -16,7 +16,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/nftoken-mint.ts`, this factory adds
+ * Compared with the Class API's `NFTokenMint`, this factory adds
  * guards the class skips (or that xrpl.js / xrpl.org / XLS-20 / XLS-46
  * mandate but the class omits):
  *
@@ -28,15 +28,15 @@
  *     `~/.mavis/docs.local/xrpl.js/repo/packages/xrpl/src/models/transactions/NFTokenMint.ts`
  *     lines 149–153.
  *
- * - **`URI` must be hex-encoded** — XLS-20 §1.3.3 and xrpl.org both state
- *   the URI is a BLOB and must be hex-encoded in JSON. Our class accepts
- *   any string.
- *   - Source: XLS-20 §1.3.3
- *     (`~/.mavis/docs.local/xrpl-standards/repo/XLS-0020-non-fungible-tokens/README.md`
- *     line 134).
- *   - Source: xrpl.org `nftokenmint.md` ("This field must be hex-encoded")
- *     (`~/.mavis/docs.local/xrpl-dev-portal/repo/docs/references/protocol/transactions/types/nftokenmint.md`
- *     line 53).
+ * - **`URI` must be hex-encoded** — xrpl.org types `URI` as `Blob` and
+ *   requires that in JSON it be "encoded as a string of hexadecimal". XLS-20
+ *   does NOT mandate hex encoding — §1.3.3 only says the URI is not checked
+ *   for validity and is capped at 256 bytes. Our class accepts any string.
+ *   - Source: xrpl.org `nftokenmint.md` line 53 ("Blob"; "this should be
+ *     encoded as a string of hexadecimal").
+ *   - Cross-ref: XLS-20 §1.3.3 line 134 ("The URI is NOT checked for
+ *     validity") — the spec deliberately does not constrain the encoding,
+ *     so the hex rule is xrpl.org's, not the XLS's.
  *
  * - **`URI` must not be an empty string** — xrpl.js's `validateNFTokenMint`
  *   rejects `''` (line 157–159); the class accepts it. XLS-20 §1.3.3 says
@@ -45,7 +45,7 @@
  *   - Source: xrpl.js `NFTokenMint.ts` lines 157–159.
  *
  * - **`URI` length capped at 256 bytes (512 hex chars)** — XLS-20 §1.3.3
- *   states the BLOB is limited to 256 bytes. The class does not enforce
+ *   caps the URI at 256 bytes. The class does not enforce
  *   this; the factory does. We also reject odd-length hex.
  *   - Source: XLS-20 §1.3.3 line 134.
  *   - Source: xrpl.org `nftokenmint.md` line 53 ("limited to a maximum
@@ -57,7 +57,7 @@
  *   - Source: xrpl.org `nftokenmint.md` line 50 ("UInt32").
  *   - Source: XLS-20 §1.5.1
  *     (`~/.mavis/docs.local/xrpl-standards/repo/XLS-0020-non-fungible-tokens/README.md`
- *     line 344: "Taxons have a valid range from 0x0 to 0xFFFFFFFF").
+ *     line 342: "Taxons have a valid range from 0x0 to 0xFFFFFFFF").
  *
  * - **`TransferFee` requires `tfTransferable`** — XLS-20 §1.5.1 (line 367)
  *   and xrpl.org `nftokenmint.md` (line 52) both state: "If this field

@@ -4,7 +4,7 @@
  * Permanently removes an NFToken object from its NFTokenPage. Validation
  * happens at construction; there is no way to construct an invalid tx.
  *
- *   import { nftokenBurn } from 'xrplt/fp';
+ *   import { nftokenBurn } from 'xrpjson';
  *   const tx = nftokenBurn({ Account, NFTokenID });
  *   const j = tx.toJSON();
  *
@@ -19,7 +19,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/nftoken-burn.ts`, this factory adds
+ * Compared with the Class API's `NFTokenBurn`, this factory adds
  * guards the class skips (or that xrpl.js / xrpl.org / XLS-20 mandate
  * but the class omits):
  *

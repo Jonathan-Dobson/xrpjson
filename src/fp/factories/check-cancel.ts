@@ -7,7 +7,7 @@
  * Validation happens at construction; there is no way to construct
  * an invalid tx.
  *
- *   import { checkCancel } from 'xrplt/fp';
+ *   import { checkCancel } from 'xrpjson';
  *   const tx = checkCancel({ Account, CheckID });
  *   const j = tx.toJSON();
  *
@@ -23,7 +23,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/check-cancel.ts`, this factory adds
+ * Compared with the Class API's `CheckCancel`, this factory adds
  * two preclaim guards the class skips (or that xrpl.js / xrpl.org
  * mandate but the class omits):
  *
@@ -37,7 +37,7 @@
  *   (`isString(this.CheckID)`). The factory enforces 64-char hex.
  *   - Source: xrpl.org `checkcancel.md` line 34 (`UInt256`,
  *     "64-character hexadecimal string").
- *   - Source: xrpl.js `CheckCancel.ts` lines 31–33 (lax `typeof`
+ *   - Source: xrpl.js `checkCancel.ts` lines 31–33 (lax `typeof`
  *     check; no length or hex validation).
  *   - Cross-ref: rippled parses `CheckID` as `uint256` in
  *     `CheckCancel.cpp`; uint256 is 32 bytes = 64 hex chars.

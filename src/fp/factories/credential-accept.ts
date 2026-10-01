@@ -5,7 +5,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { credentialAccept } from 'xrplt/fp';
+ *   import { credentialAccept } from 'xrpjson';
  *   const tx = credentialAccept({
  *     Account,
  *     Issuer: iss,
@@ -21,7 +21,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/credential-accept.ts` is
+ * The class-based API at the Class API's `CredentialAccept` is
  * missing three rules that the canonical sources require. The factory
  * adds them:
  *

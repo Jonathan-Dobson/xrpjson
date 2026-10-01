@@ -9,7 +9,7 @@
  *   5. Frozen-shape contract (frozen, mutation throws,
  *      .with() re-validates, .toJSON() strips).
  *
- * Imports the factory directly (not via the `xrplt/fp` barrel) so this
+ * Imports the factory directly (not via the package barrel) so this
  * file is safe for parallel-worker fanout — the parent integrates the
  * barrel export after all workers finish.
  */

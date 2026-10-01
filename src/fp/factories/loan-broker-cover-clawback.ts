@@ -5,7 +5,7 @@
  * Issuer of the Loan asset can submit this. Clawback is limited to the
  * minimum cover required for current loans.
  *
- *   import { loanBrokerCoverClawback } from 'xrplt/fp';
+ *   import { loanBrokerCoverClawback } from 'xrpjson';
  *   const tx = loanBrokerCoverClawback({ Account, LoanBrokerID, Amount });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Amount: { currency: 'USD', issuer, value: '50' } });
@@ -22,7 +22,7 @@
  * ## Divergences
  *
  * The factory enforces five preclaim checks the class API
- * (`src/transactions/loan-broker-cover-clawback.ts`) skips:
+ * (the Class API's `LoanBrokerCoverClawback`) skips:
  *
  *   1. `LoanBrokerID` must NOT be the all-zeros HASH256 value when present.
  *      Source: XLS-66 §3.7.3.1 check 2 — "`LoanBrokerID` is specified and is

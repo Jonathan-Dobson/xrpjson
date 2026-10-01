@@ -5,7 +5,7 @@
  * complementary offers in brokered mode. Validation happens at
  * construction; there is no way to construct an invalid tx.
  *
- *   import { nftokenAcceptOffer } from 'xrplt/fp';
+ *   import { nftokenAcceptOffer } from 'xrpjson';
  *   // Direct mode — accept a sell offer:
  *   const tx = nftokenAcceptOffer({ Account, NFTokenSellOffer });
  *   // Brokered mode — match buy + sell with broker fee:
@@ -23,7 +23,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/nftoken-accept-offer.ts`, this factory
+ * Compared with the Class API's `NFTokenAcceptOffer`, this factory
  * adds guards the class skips (or that xrpl.js / xrpl.org / XLS-20
  * mandate but the class omits):
  *

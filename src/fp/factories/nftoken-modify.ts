@@ -6,7 +6,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { nftokenModify } from 'xrplt/fp';
+ *   import { nftokenModify } from 'xrpjson';
  *   const tx = nftokenModify({ Account, NFTokenID });
  *   const tx2 = nftokenModify({
  *     Account, NFTokenID,
@@ -29,7 +29,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/nftoken-modify.ts`, this factory adds
+ * Compared with the Class API's `NFTokenModify`, this factory adds
  * guards the class skips (or that xrpl.js / xrpl.org / XLS-46 mandate
  * but the class omits):
  *

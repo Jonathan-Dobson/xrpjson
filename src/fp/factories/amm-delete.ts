@@ -9,7 +9,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { ammDelete } from 'xrplt/fp';
+ *   import { ammDelete } from 'xrpjson';
  *   const tx = ammDelete({
  *     Account,
  *     Asset:  { currency: 'XRP' },
@@ -26,7 +26,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/amm-delete.ts` validates
+ * The class-based API at the Class API's `AMMDelete` validates
  * `Asset` and `Asset2` with `isRecord`, which accepts any object —
  * including the wrong kind of object (e.g. a `Memo`, a `Signer`, or an
  * empty `{}`). The factory fills three guards the class skips:

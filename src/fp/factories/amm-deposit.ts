@@ -5,7 +5,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { ammDeposit } from 'xrplt/fp';
+ *   import { ammDeposit } from 'xrpjson';
  *   const tx = ammDeposit({
  *     Account,
  *     Asset:  { currency: 'XRP' },
@@ -24,7 +24,7 @@
  *
  * ## Divergences
  * The factory enforces eight preclaim checks that the class API
- * (`src/transactions/amm-deposit.ts`) skips:
+ * (the Class API's `AMMDeposit`) skips:
  *
  *   1. `Asset` must be an `IssuedCurrency` (XRP form OR IOU form,
  *      NOT MPT). The class only checks `isRecord`, which lets

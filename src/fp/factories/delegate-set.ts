@@ -5,7 +5,7 @@
  * transaction types on behalf of the sender. Validation happens at
  * construction; there is no way to construct an invalid tx.
  *
- *   import { delegateSet } from 'xrplt/fp';
+ *   import { delegateSet } from 'xrpjson';
  *   const tx = delegateSet({
  *     Account,
  *     Authorize: OTHER_ACCOUNT,
@@ -24,12 +24,12 @@
  *
  * The factory implements the canonical XRPL DelegateSet shape from
  * xrpl.js / XLS-85d, which is a strict superset of the current class
- * API at `src/transactions/delegate-set.ts`. The class is a placeholder
+ * API at the Class API's `DelegateSet`. The class is a placeholder
  * skeleton — it accepts a single `Delegate` field and does not model
  * the `Permissions` array at all. Concretely:
  *
  *   1. **Field rename: `Delegate` → `Authorize`.** The class
- *      `src/transactions/delegate-set.ts` exposes `Delegate: string` as
+ *      the Class API's `DelegateSet` exposes `Delegate: string` as
  *      its sole body field. Canonical xrpl.js names the field
  *      `Authorize: Account` (`node_modules/xrpl/src/models/transactions/
  *      delegateSet.ts:36-48`). The factory follows xrpl.js / XLS-85d
@@ -40,23 +40,23 @@
  *
  *   2. **`Permissions` array is required.** xrpl.js requires
  *      `validateRequiredField(tx, 'Permissions', Array.isArray)`
- *      (xrpl.js `validateDelegateSet.ts:68`). The class does not model
+ *      (xrpl.js `delegateSet.ts:68`). The class does not model
  *      `Permissions` at all. Without it the tx is malformed and rippled
  *      rejects with `temMALFORMED`. Source: xrpl.js
- *      `validateDelegateSet.ts:68`; ripple-binary-codec
+ *      `delegateSet.ts:68`; ripple-binary-codec
  *      `definitions.json` `DelegateSet: Permissions [ required ]`.
  *
  *   3. **`Permissions` length cap is 10.** xrpl.js enforces
  *      `permissions.length > PERMISSIONS_MAX_LENGTH`
  *      (`PERMISSIONS_MAX_LENGTH = 10`) and rejects longer arrays
- *      (xrpl.js `validateDelegateSet.ts:72-76`). The factory mirrors
+ *      (xrpl.js `delegateSet.ts:72-76`). The factory mirrors
  *      this with a `ValidationError` at construction.
  *
  *   4. **Each `Permission` element must have exactly `{ Permission: {
  *      PermissionValue: string } }` shape.** xrpl.js rejects:
  *      null elements, more than one outer key, missing `Permission`,
  *      more than one key under `Permission`, missing `PermissionValue`,
- *      non-string `PermissionValue` (xrpl.js `validateDelegateSet.ts:
+ *      non-string `PermissionValue` (xrpl.js `delegateSet.ts:
  *      79-99`). The factory runs the same shape checks at
  *      construction. The class does not model `Permissions` so cannot
  *      reason about its shape at all.
@@ -65,21 +65,21 @@
  *      xrpl.js maintains `NON_DELEGABLE_TRANSACTIONS = { AccountSet,
  *      SetRegularKey, SignerListSet, DelegateSet, AccountDelete, Batch,
  *      EnableAmendment, SetFee, UNLModify }` (xrpl.js
- *      `validateDelegateSet.ts:12-25, 102-104`) and rejects any
+ *      `delegateSet.ts:12-25, 102-104`) and rejects any
  *      `PermissionValue` in that set. The factory encodes the same set
  *      and rejects at construction. Self-delegation via `DelegateSet`
  *      is therefore blocked preclaim, matching rippled's behaviour.
  *
  *   6. **`Authorize` must differ from `Account`.** xrpl.js throws
  *      `'DelegateSet: Authorize and Account must be different.'`
- *      (xrpl.js `validateDelegateSet.ts:62-66`). The class does not
+ *      (xrpl.js `delegateSet.ts:62-66`). The class does not
  *      check this — `delegateSet({ Account: A, Delegate: A })` would
  *      pass the class's `isAccount(this.Delegate)` check.
  *
  *   7. **No duplicate `PermissionValue`s.** xrpl.js maintains a Set
  *      while iterating and throws if
  *      `permissions.length !== permissionValueSet.size`
- *      (`validateDelegateSet.ts:107-111`). The factory mirrors this.
+ *      (`delegateSet.ts:107-111`). The factory mirrors this.
  *
  *   8. **`Account` is validated as a classic/X-address via
  *      `isAccount`, not just as a non-empty string.** The class

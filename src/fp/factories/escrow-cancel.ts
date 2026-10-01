@@ -7,7 +7,7 @@
  * Validation here happens at construction; there is no way to construct
  * an invalid tx.
  *
- *   import { escrowCancel } from 'xrplt/fp';
+ *   import { escrowCancel } from 'xrpjson';
  *   const tx = escrowCancel({ Account, Owner, OfferSequence: 7 });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Fee: '12' });
@@ -21,7 +21,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/escrow-cancel.ts` and xrpl.js's
+ * The class-based API at the Class API's `EscrowCancel` and xrpl.js's
  * `validateEscrowCancel` both skip three preclaim guards that the
  * canonical sources require. The factory fills them:
  *
