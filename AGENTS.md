@@ -6,8 +6,8 @@ first change.
 ## Branches
 
 - **`main`** — the only branch that ships. All product code lands here.
-- **`semantic-codesearch`** — infrastructure-only. It hosts the
-  `codebase-semantic-search` dev dependency, its config
+- **`semantic-codesearch`** — infrastructure-only, and **local-only: never
+  pushed**. It hosts the `codebase-semantic-search` dev dependency, its config
   (`.codesearchrc.json`, `docker-compose.search.yml`), the generated
   agent-instruction files under `.github/instructions/` and
   `.github/agents/`, and the MCP registration.
@@ -24,7 +24,11 @@ first change.
 3. **Keep it current with `main`.** Merge `main` into the branch
    (`git switch semantic-codesearch && git merge main`), resolve nothing but
    the shared config, then re-index.
-4. **The index outlives the branch.** Milvus is a Docker volume, not git
+4. **Never push it.** It is tracked locally only. `origin` carries `main` and
+   nothing else, so `git push` on this branch must always be refused — the
+   infra config, the Milvus port binding, and the local index are all
+   machine-local concerns, and none of them belong in the published repo.
+5. **The index outlives the branch.** Milvus is a Docker volume, not git
    state, so once you have merged `main` and re-indexed, `git switch` back to
    your working branch and the `codesearch` MCP tools keep answering normally.
 
