@@ -5,7 +5,7 @@
  * `LoanBroker` can delete it. Validation happens at construction; there
  * is no way to construct an invalid tx.
  *
- *   import { loanBrokerDelete } from 'xrplt/fp';
+ *   import { loanBrokerDelete } from 'xrpjson';
  *   const tx = loanBrokerDelete({ Account, LoanBrokerID });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Fee: '15' });
@@ -20,7 +20,7 @@
  * ## Divergences
  *
  * The factory enforces one preclaim check that the class API
- * (`src/transactions/loan-broker-delete.ts`) and xrpl.js both skip:
+ * (the Class API's `LoanBrokerDelete`) and xrpl.js both skip:
  *
  *   What: `LoanBrokerID` must NOT be the all-zeros HASH256 value.
  *

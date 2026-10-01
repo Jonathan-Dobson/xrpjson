@@ -8,7 +8,7 @@
  * source can omit them. Validation happens at construction; there is
  * no way to construct an invalid tx.
  *
- *   import { paymentChannelClaim } from 'xrplt/fp';
+ *   import { paymentChannelClaim } from 'xrpjson';
  *   const tx = paymentChannelClaim({ Account, Channel });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Balance: '2000000' });
@@ -24,7 +24,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/payment-channel-claim.ts`, this
+ * Compared with the Class API's `PaymentChannelClaim`, this
  * factory adds preclaim guards the class API skips:
  *
  * 1. **`Channel` must be a 64-character hex string (UInt256).**

@@ -5,7 +5,7 @@
  * the leftover XRP to a specified destination account. Validation happens
  * at construction; there is no way to construct an invalid tx.
  *
- *   import { accountDelete } from 'xrplt/fp';
+ *   import { accountDelete } from 'xrpjson';
  *   const tx = accountDelete({ Account, Destination });
  *   tx.validate();   // throws if construction didn't already
  *   const j = tx.toJSON();
@@ -22,7 +22,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/account-delete.ts` is missing
+ * The class-based API at the Class API's `AccountDelete` is missing
  * three rules that the canonical sources require. The factory fills them:
  *
  *   1. `CredentialIDs` is not declared by the class.

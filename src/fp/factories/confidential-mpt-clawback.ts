@@ -13,7 +13,7 @@
  * invalid tx. Compare to the class-based equivalent, which exposes a
  * separate `.validate()` method you must remember to call.
  *
- *   import { confidentialMptClawback } from 'xrplt/fp';
+ *   import { confidentialMptClawback } from 'xrpjson';
  *   const tx = confidentialMptClawback({ Account, Holder, MPTokenIssuanceID, MPTAmount, ZKProof });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Fee: '100' });
@@ -27,7 +27,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/confidential-mpt-clawback.ts`, this
+ * Compared with the Class API's `ConfidentialMPTClawback`, this
  * factory adds guards the class skips — and is explicit about the
  * canonical guards it cannot enforce in a zero-dependency package.
  *

@@ -4,7 +4,7 @@
  * Creates or modifies a PermissionedDomain ledger entry. Validation
  * happens at construction; there is no way to construct an invalid tx.
  *
- *   import { permissionedDomainSet } from 'xrplt/fp';
+ *   import { permissionedDomainSet } from 'xrpjson';
  *   const tx = permissionedDomainSet({
  *     Account,
  *     AcceptedCredentials: [
@@ -24,7 +24,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/permissioned-domain-set.ts`
+ * The class-based API at the Class API's `PermissionedDomainSet`
  * is missing several rules that the canonical sources require, AND
  * exposes one field that is not in the spec at all. The factory
  * corrects both:

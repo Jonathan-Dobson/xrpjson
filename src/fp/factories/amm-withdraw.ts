@@ -6,7 +6,7 @@
  * enforces the seven mutually-exclusive AMM-withdraw modes at
  * construction; there is no way to construct an invalid tx.
  *
- *   import { ammWithdraw } from 'xrplt/fp';
+ *   import { ammWithdraw } from 'xrpjson';
  *   const tx = ammWithdraw({
  *     Account,
  *     Asset:  { currency: 'XRP' },
@@ -29,7 +29,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/amm-withdraw.ts`, this factory adds
+ * Compared with the Class API's `AMMWithdraw`, this factory adds
  * preclaim guards the class API skips. The class only calls `isRecord`
  * on `Asset` / `Asset2` and does not validate any of the optional
  * amount fields, the field-combination rules, or the

@@ -9,7 +9,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { paymentChannelFund } from 'xrplt/fp';
+ *   import { paymentChannelFund } from 'xrpjson';
  *   const tx = paymentChannelFund({ Account, Channel, Amount });
  *   const tx2 = tx.with({ Expiration: 543171558 });
  *   const j = tx.toJSON();
@@ -22,7 +22,7 @@
  *
  * ## Divergences
  * The factory enforces three preflight guards that the class API
- * (`src/transactions/payment-channel-fund.ts`) and/or `xrpl.js`
+ * (the Class API's `PaymentChannelFund`) and/or `xrpl.js`
  * (`validatePaymentChannelFund`) skip:
  *
  *   1. `Amount` must be an XRP-drops string (decimal/scientific mantissa)

@@ -6,7 +6,7 @@
  * after construction; this factory validates at construction so an
  * invalid tx can never exist.
  *
- *   import { loanSet } from 'xrplt/fp';
+ *   import { loanSet } from 'xrpjson';
  *   const tx = loanSet({ Account, LoanBrokerID, PrincipalRequested });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ InterestRate: 250 });

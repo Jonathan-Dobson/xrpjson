@@ -8,7 +8,7 @@
  * (`OtherChainSource`), the amount, and which side of the bridge
  * the commit happened on (`WasLockingChainSend`).
  *
- *   import { xchainAddAccountCreateAttestation } from 'xrplt/fp';
+ *   import { xchainAddAccountCreateAttestation } from 'xrpjson';
  *   const tx = xchainAddAccountCreateAttestation({
  *     Account: 'rDr5okqGKmMpn44Bbhe5WAfDQx8e9XquEv',
  *     OtherChainSource: 'rUzB7yg1LcFa7m3q1hfrjr5w53vcWzNh3U',
@@ -39,7 +39,7 @@
  *
  * The factory implements the canonical XLS-0038 §2.4.2 field set,
  * which is a strict superset of what the class API at
- * `src/transactions/xchain-add-account-create-attestation.ts` exposes.
+ * the Class API's `XChainAddAccountCreateAttestation` exposes.
  * The class is missing four required fields (`AttestationSignerAccount`,
  * `OtherChainSource`, `SignatureReward`, plus `XChainAccountCreateCount`
  * typed as `number` only). It also uses a generic `isRecord` for
@@ -49,7 +49,7 @@
  *
  *   1. **Validation is eager, not lazy.** The class's `validate()`
  *      only checks `XChainBridge isRecord` and `XChainAccountCreateCount
- *      isNumber` (`src/transactions/xchain-add-account-create-attestation.ts:
+ *      isNumber` (`the Class API's `XChainAddAccountCreateAttestation`:
  *      44-52`). The factory mirrors the full xrpl.js guard sequence
  *      (`XChainAddAccountCreateAttestation.ts:89-123`) at construction
  *      time so an invalid tx is impossible to construct.
@@ -113,7 +113,7 @@
  *              XRPL.org `xchainaddaccountcreateattestation.md:66`.
  *
  *   7. **`XChainBridge` is fully shape-validated.** The class only
- *      checks `isRecord` (`src/transactions/xchain-add-account-create-attestation.ts:46`),
+ *      checks `isRecord` (the Class API's `XChainAddAccountCreateAttestation`, line 46),
  *      which accepts any object including `{}`. The factory uses the
  *      local `isXChainBridge` helper (4 keys, both Issues valid
  *      currency objects, both doors as strings) AND verifies each

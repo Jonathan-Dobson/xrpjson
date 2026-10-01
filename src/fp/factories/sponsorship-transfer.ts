@@ -8,7 +8,7 @@
  *   - `tfSponsorshipCreate`   (0x00020000)
  *   - `tfSponsorshipReassign` (0x00040000)
  *
- *   import { sponsorshipTransfer } from 'xrplt/fp';
+ *   import { sponsorshipTransfer } from 'xrpjson';
  *   const tx = sponsorshipTransfer({
  *     Account,
  *     Flags: 0x00020000,                  // tfSponsorshipCreate
@@ -30,7 +30,7 @@
  * ## Divergences
  *
  * The factory enforces eight preclaim rules that the class API
- * (`src/transactions/sponsorship-transfer.ts`) skips. Each one is mandated
+ * (the Class API's `SponsorshipTransfer`) skips. Each one is mandated
  * by the Sponsor amendment / `validateSponsorshipTransfer` /
  * `sponsorshiptransfer.md`.
  *

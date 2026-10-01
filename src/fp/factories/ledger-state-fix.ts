@@ -10,7 +10,7 @@
  * Users rarely submit these, but the factory validates the shape so any
  * tooling that emits one cannot produce a malformed wire format.
  *
- *   import { ledgerStateFix } from 'xrplt/fp';
+ *   import { ledgerStateFix } from 'xrpjson';
  *   const tx = ledgerStateFix({
  *     Account,
  *     LedgerFixType: 1,
@@ -30,7 +30,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/ledger-state-fix.ts` has an
+ * The class-based API at the Class API's `LedgerStateFix` has an
  * empty `ASSIGNABLE_FIELDS` list and accepts any props blindly through
  * `applyManifest`. It does not validate any field, so the factory fills
  * every spec guard here:

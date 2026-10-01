@@ -6,7 +6,7 @@
  * here). Validation happens at construction; there is no way to construct
  * an invalid tx.
  *
- *   import { permissionedDomainDelete } from 'xrplt/fp';
+ *   import { permissionedDomainDelete } from 'xrpjson';
  *   const tx = permissionedDomainDelete({ Account, DomainID });
  *   const j = tx.toJSON();
  *

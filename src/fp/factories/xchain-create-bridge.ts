@@ -8,7 +8,7 @@
  * setup. Validation happens at construction; there is no way to
  * construct an invalid tx.
  *
- *   import { xchainCreateBridge } from 'xrplt/fp';
+ *   import { xchainCreateBridge } from 'xrpjson';
  *   const tx = xchainCreateBridge({
  *     Account: 'rhWQzvdmhf5vFS35vtKUSUwNZHGT53qQsg',
  *     XChainBridge: {
@@ -29,7 +29,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/xchain-create-bridge.ts`, this factory
+ * Compared with the Class API's `XChainCreateBridge`, this factory
  * adds guards the class skips (or that xrpl.js / xrpl.org / XLS-38
  * mandate but the class omits):
  *
@@ -49,7 +49,7 @@
  *     `Account` as the door account on the locking chain.
  *
  * - **`XChainBridge` is fully shape-validated.** xrpl.js
- *   `validateXChainCreateBridge.ts:51` calls
+ *   `XChainCreateBridge.ts:51` calls
  *   `validateRequiredField(tx, 'XChainBridge', isXChainBridge)`,
  *   which requires exactly 4 keys, two `AccountID` door strings, and
  *   two `Issue` currency objects (`{currency: 'XRP'}` or
@@ -93,7 +93,7 @@
  *   the signers." xrpl.org `xchaincreatebridge.md` line 50 lists
  *   `SignatureReward` as `Currency Amount`, and the example JSON
  *   (line 39) shows `"SignatureReward": 200`. xrpl.js
- *   `validateXChainCreateBridge.ts:53` only runs `isAmount`, which
+ *   `XChainCreateBridge.ts:53` only runs `isAmount`, which
  *   accepts any of: XRP drops string, IOU object, or MPT object. The
  *   factory enforces XRP-only (drops string) with `≥ 0` (zero is
  *   permitted; a bridge may opt out of witness payment). This matches
@@ -115,7 +115,7 @@
  *   XRP-XRP bridges.**" XLS-38 §2.1.1.1.4 line 204 repeats the
  *   same. The class accepts any `Amount` (via the `isAmount` helper
  *   inherited from the base); xrpl.js's
- *   `validateXChainCreateBridge.ts:55` does the same. The factory
+ *   `XChainCreateBridge.ts:55` does the same. The factory
  *   rejects IOU/MPT forms at construction and additionally rejects
  *   non-canonical wire forms (leading zeros, decimals, exponents)
  *   to mirror the strict sibling behavior. Optional: when omitted,

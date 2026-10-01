@@ -4,11 +4,11 @@
  * Sets aside one or more sequence numbers as Tickets so the account can
  * submit later transactions without worrying about ordering or
  * cancellation races. The class-based equivalent at
- * `src/transactions/ticket-create.ts` requires a separate `.validate()`
+ * the Class API's `TicketCreate` requires a separate `.validate()`
  * call after construction; this factory validates at construction so an
  * invalid tx can never exist.
  *
- *   import { ticketCreate } from 'xrplt/fp';
+ *   import { ticketCreate } from 'xrpjson';
  *   const tx = ticketCreate({ Account, TicketCount: 10 });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ TicketCount: 25 });
@@ -21,7 +21,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/ticket-create.ts`, this factory adds
+ * Compared with the Class API's `TicketCreate`, this factory adds
  * preclaim guards the class API skips and emits more specific error
  * messages than the class's single-message range check.
  *

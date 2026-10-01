@@ -9,7 +9,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { ammClawback } from 'xrplt/fp';
+ *   import { ammClawback } from 'xrpjson';
  *   const tx = ammClawback({
  *     Account,
  *     Holder,
@@ -27,7 +27,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/amm-clawback.ts`, this factory adds
+ * Compared with the Class API's `AMMClawback`, this factory adds
  * preclaim guards the class API skips. Each is cited to the canonical
  * source.
  *

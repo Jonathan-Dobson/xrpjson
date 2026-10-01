@@ -4,7 +4,7 @@
  * Create, replace, or remove a list of signers that can be used to
  * multi-sign transactions on the ledger.
  *
- *   import { signerListSet } from 'xrplt/fp';
+ *   import { signerListSet } from 'xrpjson';
  *   const tx = signerListSet({
  *     Account,
  *     SignerQuorum: 3,
@@ -29,7 +29,7 @@
  *
  * The factory implements the canonical XRPL SignerListSet shape from
  * xrpl.org + rippled + xrpl.js, which is a strict superset of the
- * current class API at `src/transactions/signer-list-set.ts`. The class
+ * current class API at the Class API's `SignerListSet`. The class
  * is a thin skeleton — it only checks `SignerQuorum` is a number and
  * that `SignerEntries` (when present) is an array of `SignerEntry`
  * objects. It does NOT enforce any of the ledger-level guardrails
@@ -38,7 +38,7 @@
  * `temBAD_QUORUM` / `temBAD_SIGNER` / `temBAD_WEIGHT`. Concretely:
  *
  *   1. **`SignerEntries` is required when `SignerQuorum > 0`.**
- *      xrpl.js `validateSignerListSet.ts:53-62` short-circuits on
+ *      xrpl.js `signerListSet.ts:53-62` short-circuits on
  *      `tx.SignerQuorum === 0`, but for any non-zero quorum it then
  *      runs `validateRequiredField(tx, 'SignerEntries', isArray)` and
  *      rejects an empty array with `'SignerListSet: need at least 1

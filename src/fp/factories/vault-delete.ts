@@ -4,7 +4,7 @@
  * Deletes an existing vault ledger entry. Validation happens at
  * construction; there is no way to construct an invalid tx.
  *
- *   import { vaultDelete } from 'xrplt/fp';
+ *   import { vaultDelete } from 'xrpjson';
  *   const tx = vaultDelete({ Account, VaultID });
  *   const j = tx.toJSON();
  *
@@ -18,7 +18,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/vault-delete.ts` is missing
+ * The class-based API at the Class API's `VaultDelete` is missing
  * two rules that the canonical sources require. The factory fills them:
  *
  *   1. Empty `MemoData` is rejected.

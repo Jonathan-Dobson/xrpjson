@@ -5,7 +5,7 @@
  * for an issued (IOU) currency. Validation happens at construction;
  * there is no way to construct an invalid tx.
  *
- *   import { trustSet } from 'xrplt/fp';
+ *   import { trustSet } from 'xrpjson';
  *   const tx = trustSet({
  *     Account,
  *     LimitAmount: { currency: 'USD', issuer: GATEWAY, value: '100' },
@@ -17,7 +17,7 @@
  *
  * ## Divergences
  * The factory enforces six preclaim guards the class API
- * (`src/transactions/trust-set.ts`) skips. The class only checks that
+ * (the Class API's `TrustSet`) skips. The class only checks that
  * `LimitAmount` passes `isAmount`, which accepts all three Amount forms
  * (XRP drops, IssuedCurrency, MPT) — none of which is the shape the spec
  * actually mandates for a trustline.
@@ -54,7 +54,7 @@
  *      `docs/references/protocol/data-types/currency-formats.md` line 63
  *      (`value` column of the issued-currency amount table) — "Quoted
  *      decimal representation of the amount of the token. This can
- *      include scientific notation". Line 28 — "Minimum value: `0`.
+ *      include scientific notation". Line 27 — "Minimum value: `0`.
  *      (Cannot be negative.)" The class accepts any string and does
  *      not parse or sign-check the value.
  *

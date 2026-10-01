@@ -6,7 +6,7 @@
  * fee for up to 24 hours. Validation happens at construction;
  * there is no way to construct an invalid tx.
  *
- *   import { ammBid } from 'xrplt/fp';
+ *   import { ammBid } from 'xrpjson';
  *   const tx = ammBid({
  *     Account,
  *     Asset:  { currency: 'XRP' },
@@ -29,7 +29,7 @@
  *
  * ## Divergences
  * The factory enforces seven preclaim checks that the class API
- * (`src/transactions/amm-bid.ts`) skips:
+ * (the Class API's `AMMBid`) skips:
  *
  *   1. `Asset` must be a valid `Currency` (XRP / IOU / MPT), not
  *      merely a record. The class API uses `isRecord(this.Asset)`,

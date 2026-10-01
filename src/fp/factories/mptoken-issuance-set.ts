@@ -8,7 +8,7 @@
  * binding. Validation happens at construction; there is no way to
  * construct an invalid tx.
  *
- *   import { mptokenIssuanceSet } from 'xrplt/fp';
+ *   import { mptokenIssuanceSet } from 'xrpjson';
  *   const tx = mptokenIssuanceSet({
  *     Account: ISSUER,
  *     MPTokenIssuanceID,
@@ -31,7 +31,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/mptoken-issuance-set.ts` and
+ * The class-based API at the Class API's `MPTokenIssuanceSet` and
  * xrpl.js's `validateMPTokenIssuanceSet` are missing seven rules that
  * the canonical sources require. The factory fills them:
  *

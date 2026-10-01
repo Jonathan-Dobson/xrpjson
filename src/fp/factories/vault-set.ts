@@ -5,7 +5,7 @@
  * by `VaultID`. Validation happens at construction; there is no way to
  * construct an invalid tx.
  *
- *   import { vaultSet } from 'xrplt/fp';
+ *   import { vaultSet } from 'xrpjson';
  *   const tx = vaultSet({ Account, VaultID, Data: '5661756C74' });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ AssetsMaximum: '1000000' });
@@ -19,7 +19,7 @@
  *
  * ## Divergences
  * The factory enforces two preclaim checks that the class API
- * (`src/transactions/vault-set.ts`) skips:
+ * (the Class API's `VaultSet`) skips:
  *
  *   1. `VaultID` must not be the all-zeros HASH256 value.
  *      Source: XLS-65 §3.3.2.1 check 1 — "The `VaultID` field is zero

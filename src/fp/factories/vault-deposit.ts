@@ -4,7 +4,7 @@
  * Deposits assets into a vault in exchange for vault shares. Validation
  * happens at construction; there is no way to construct an invalid tx.
  *
- *   import { vaultDeposit } from 'xrplt/fp';
+ *   import { vaultDeposit } from 'xrpjson';
  *   const tx = vaultDeposit({ Account, VaultID, Amount });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Amount: '5000000' });
@@ -19,7 +19,7 @@
  *
  * ## Divergences
  * The factory enforces two preclaim checks that the class API
- * (`src/transactions/vault-deposit.ts`) skips:
+ * (the Class API's `VaultDeposit`) skips:
  *
  *   1. `VaultID` must not be the all-zeros HASH256 value.
  *      Source: XLS-65 §3.5.2.1 check 1 — "The `VaultID` field is zero

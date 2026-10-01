@@ -7,7 +7,7 @@
  * required to unlock the funds) and/or a `FinishAfter` time. Validation
  * happens at construction; there is no way to construct an invalid tx.
  *
- *   import { escrowFinish } from 'xrplt/fp';
+ *   import { escrowFinish } from 'xrpjson';
  *   const tx = escrowFinish({
  *     Account, Owner, OfferSequence,
  *     Condition: 'A0258020…', Fulfillment: 'A0028000',
@@ -25,7 +25,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/escrow-finish.ts`, this factory adds
+ * Compared with the Class API's `EscrowFinish`, this factory adds
  * preclaim guards the class API skips:
  *
  * 1. **`CredentialIDs` field is supported.**

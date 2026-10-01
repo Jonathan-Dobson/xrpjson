@@ -6,7 +6,7 @@
  * a share amount (vault pays out the corresponding assets). Validation
  * happens at construction; there is no way to construct an invalid tx.
  *
- *   import { vaultWithdraw } from 'xrplt/fp';
+ *   import { vaultWithdraw } from 'xrpjson';
  *   const tx = vaultWithdraw({ Account, VaultID, Amount });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Destination: 'r…' });
@@ -23,7 +23,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/vault-withdraw.ts`, this factory adds
+ * Compared with the Class API's `VaultWithdraw`, this factory adds
  * preclaim guards the class API skips:
  *
  * 1. **`VaultID` must not be the all-zeros HASH256.**

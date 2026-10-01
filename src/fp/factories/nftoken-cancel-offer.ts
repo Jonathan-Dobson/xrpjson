@@ -4,7 +4,7 @@
  * Cancels one or more existing NFTokenOffer ledger entries. Validation
  * happens at construction; there is no way to construct an invalid tx.
  *
- *   import { nftokenCancelOffer } from 'xrplt/fp';
+ *   import { nftokenCancelOffer } from 'xrpjson';
  *   const tx = nftokenCancelOffer({ Account, NFTokenOffers: [offerId1] });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ NFTokenOffers: [offerId1, offerId2] });
@@ -15,7 +15,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/nftoken-cancel-offer.ts`, this factory
+ * Compared with the Class API's `NFTokenCancelOffer`, this factory
  * adds guards that the class skips but the canonical sources (rippled
  * C++ source, xrpl.org Error Cases, XLS-20) mandate:
  *

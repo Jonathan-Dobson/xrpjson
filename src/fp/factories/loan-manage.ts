@@ -5,7 +5,7 @@
  * unimpairment). Validation happens at construction; there is no way to
  * construct an invalid tx.
  *
- *   import { loanManage } from 'xrplt/fp';
+ *   import { loanManage } from 'xrpjson';
  *   const tx = loanManage({ Account, LoanID });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Flags: 0x00020000 }); // tfLoanImpair
@@ -23,7 +23,7 @@
  *   "More than one of `tfLoanDefault`, `tfLoanImpair`, or `tfLoanUnimpair`
  *    flags are set (flags are mutually exclusive). (`temINVALID_FLAG`)"
  *
- * The class source (`src/transactions/loan-manage.ts`) and xrpl.js's
+ * The class source (the Class API's `LoanManage`) and xrpl.js's
  * `validateLoanManage` both only check the `tfLoanImpair` + `tfLoanUnimpair`
  * pair, missing the `tfLoanDefault` combinations.
  *

@@ -6,7 +6,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { mptokenAuthorize } from 'xrplt/fp';
+ *   import { mptokenAuthorize } from 'xrpjson';
  *   const tx = mptokenAuthorize({
  *     Account: HOLDER,
  *     MPTokenIssuanceID: '000004C463C52827307480341125DA0577DEFC38405B0E3E',
@@ -18,7 +18,7 @@
  *
  * ## Divergences
  *
- * The class-based API at `src/transactions/mptoken-authorize.ts` (and
+ * The class-based API at the Class API's `MPTokenAuthorize` (and
  * xrpl.js's `validateMPTokenAuthorize`) is missing two rules that the
  * canonical sources require. The factory fills them:
  *

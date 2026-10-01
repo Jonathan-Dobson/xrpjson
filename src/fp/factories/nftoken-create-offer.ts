@@ -6,7 +6,7 @@
  * Validation happens at construction; there is no way to construct
  * an invalid tx.
  *
- *   import { nftokenCreateOffer } from 'xrplt/fp';
+ *   import { nftokenCreateOffer } from 'xrpjson';
  *   // Sell offer (owner must be Account implicitly):
  *   const sell = nftokenCreateOffer({
  *     Account,
@@ -29,7 +29,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/nftoken-create-offer.ts`, this factory
+ * Compared with the Class API's `NFTokenCreateOffer`, this factory
  * adds guards the class skips and ones xrpl.js / xrpl.org / XLS-20
  * mandate but the class omits:
  *

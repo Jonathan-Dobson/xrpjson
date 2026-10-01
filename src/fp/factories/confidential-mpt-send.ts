@@ -10,7 +10,7 @@
  * invalid tx. Compare to the class-based equivalent, which exposes a
  * separate `.validate()` method you must remember to call.
  *
- *   import { confidentialMptSend } from 'xrplt/fp';
+ *   import { confidentialMptSend } from 'xrpjson';
  *   const tx = confidentialMptSend({
  *     Account,
  *     MPTokenIssuanceID,
@@ -34,7 +34,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/confidential-mpt-send.ts`, this factory
+ * Compared with the Class API's `ConfidentialMPTSend`, this factory
  * adds guards the class skips — and explicitly documents the two
  * canonical guards that cannot be added in a zero-dependency package.
  *

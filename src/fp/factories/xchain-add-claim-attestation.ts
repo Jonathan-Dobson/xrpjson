@@ -7,7 +7,7 @@
  * chain account (`OtherChainSource`), the amount, and which side of the
  * bridge the commit happened on (`WasLockingChainSend`).
  *
- *   import { xchainAddClaimAttestation } from 'xrplt/fp';
+ *   import { xchainAddClaimAttestation } from 'xrpjson';
  *   const tx = xchainAddClaimAttestation({
  *     Account: ATTESTOR,
  *     Amount: '100000000',
@@ -35,7 +35,7 @@
  * ## Divergences
  *
  * The class-based API at
- * `src/transactions/xchain-add-claim-attestation.ts` is missing several
+ * the Class API's `XChainAddClaimAttestation` is missing several
  * fields the canonical sources require AND exposes one field that is
  * not in the spec at all. The factory corrects both:
  *

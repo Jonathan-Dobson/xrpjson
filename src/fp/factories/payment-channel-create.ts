@@ -8,7 +8,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { paymentChannelCreate } from 'xrplt/fp';
+ *   import { paymentChannelCreate } from 'xrpjson';
  *   const tx = paymentChannelCreate({ Account, Amount, Destination, SettleDelay, PublicKey });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ CancelAfter: 800000000 });
@@ -24,7 +24,7 @@
  *
  * ## Divergences
  * The factory enforces five preclaim checks that the class API
- * (`src/transactions/payment-channel-create.ts`) and/or `xrpl.js`
+ * (the Class API's `PaymentChannelCreate`) and/or `xrpl.js`
  * (`validatePaymentChannelCreate`) skip:
  *
  *   1. `Amount` must be in XRP-drops form only (a decimal/integer string)

@@ -5,7 +5,7 @@
  * destination chain via a witness-attested bridge. Validation happens at
  * construction; there is no way to construct an invalid tx.
  *
- *   import { xchainAccountCreateCommit } from 'xrplt/fp';
+ *   import { xchainAccountCreateCommit } from 'xrpjson';
  *   const tx = xchainAccountCreateCommit({
  *     Account,
  *     Amount: '20000000',
@@ -31,7 +31,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/xchain-account-create-commit.ts`,
+ * Compared with the Class API's `XChainAccountCreateCommit`,
  * this factory adds guards the class skips (or that xrpl.js / xrpl.org
  * / XLS-38 mandate but the class omits):
  *
@@ -44,8 +44,13 @@
  *   - Source: xrpl.js
  *     `~/.mavis/docs.local/xrpl.js/repo/packages/xrpl/src/models/transactions/common.ts`
  *     `validateBaseTransaction`.
- *   - Cross-ref: rippled `XChainAccountCreateCommit.cpp` parses
- *     `Account` as `STAccount`; only valid XRPL classic addresses parse.
+ *   - Cross-ref: rippled parses `Account` as `STAccount` via the generic
+ *     JSON leaf parser — `src/libxrpl/protocol/STParsedJSON.cpp::parseLeaf`
+ *     (case `STI_ACCOUNT`); the field's serialised type is `ACCOUNT`
+ *     (`include/xrpl/protocol/detail/sfields.macro`,
+ *     `TYPED_SFIELD(sfAccount, ACCOUNT, 1)`). Note rippled's `parseLeaf`
+ *     also accepts a 40-char hex account, so "classic address" is not the
+ *     whole story — the X-address tolerance comes from xrpl.js, not rippled.
  *
  * - **`Destination` must be a valid XRPL classic or X-address.**
  *   xrpl.js `validateXChainAccountCreateCommit` (line 66) calls
@@ -82,8 +87,13 @@
  * strings; rippled parses them as `STAccount`. The factory additionally
  * runs `isAccount` on each door so a malformed door string is caught
  * at construction.
- *   - Source: rippled `XChainAccountCreateCommit.cpp` (`sfLockingChainDoor`,
- *     `sfIssuingChainDoor` parsed as `STAccount`).
+ *   - Source: rippled parses both doors as `STAccount` in the bridge's JSON
+ *     constructor — `src/libxrpl/protocol/STXChainBridge.cpp::STXChainBridge(SField const&, json::Value const&)`
+ *     (`parseBase58<AccountID>`; a bad door throws at deserialisation, not
+ *     at preclaim). Field types:
+ *     `include/xrpl/protocol/detail/sfields.macro`
+ *     (`TYPED_SFIELD(sfLockingChainDoor, ACCOUNT, 22)`,
+ *     `TYPED_SFIELD(sfIssuingChainDoor, ACCOUNT, 23)`).
  *   - Cross-ref: XLS-38 §2.1.1.1.2 line 177 (`LockingChainDoor` is
  *     `ACCOUNT`); line 179 (`IssuingChainDoor` is `ACCOUNT`).
  *
@@ -103,9 +113,12 @@
  *     XRP").
  *   - Source: XLS-38 §2.4.1 line 571 ("XRP-XRP bridges only").
  *   - Source: XLS-38 §2.4.1.1.3 line 602 (Amount in XRP).
- *   - Cross-ref: rippled `XChainAccountCreateCommit.cpp` parses
- *     `Amount` as `STAmount` with XRP constraint; non-XRP amounts
- *     fail preclaim.
+ *   - Cross-ref: rippled enforces the XRP-only constraint in
+ *     `src/libxrpl/tx/transactors/bridge/XChainBridge.cpp::XChainCreateAccountCommit::preflight`
+ *     — `if (amount.signum() <= 0 || !amount.native()) return temBAD_AMOUNT;`
+ *     (preflight, not preclaim) — and
+ *     `::XChainCreateAccountCommit::preclaim` rejects a non-XRP
+ *     destination-chain issue with `tecXCHAIN_CREATE_ACCOUNT_NONXRP_ISSUE`.
  *
  * - **`SignatureReward` must be a non-negative XRP drops string.**
  *   xrpl.org line 49: "The amount, **in XRP**, to be used to reward
@@ -119,11 +132,16 @@
  *   - Source: xrpl.org `xchainaccountcreatecommit.md` line 49 ("in
  *     XRP").
  *   - Source: XLS-38 §2.4.1.1.2 line 592 (SignatureReward in XRP).
- *   - Cross-ref: rippled `XChainAccountCreateCommit.cpp` parses
- *     `SignatureReward` as `STAmount` with XRP constraint.
+ *   - Cross-ref: rippled enforces this in
+ *     `src/libxrpl/tx/transactors/bridge/XChainBridge.cpp::XChainCreateAccountCommit::preflight`
+ *     — `if (reward.signum() < 0 || !reward.native()) return temBAD_AMOUNT;`
+ *     (negative rejected, zero permitted) — and
+ *     `::XChainCreateAccountCommit::preclaim` requires the submitted reward
+ *     to equal the bridge's stored `sfSignatureReward`
+ *     (`tecXCHAIN_REWARD_MISMATCH`).
  *
  * - **`Amount` does NOT include the `Signers` array.** rippled's
- *   `XChainAccountCreateCommit` does not accept a `Signers` field
+ *   `XChainCreateAccountCommit` does not accept a `Signers` field
  *   (witness attestations arrive via separate `XChainAddAccountCreateAttestation`
  *   transactions, not as part of this tx). The class API does not
  *   declare `Signers`, but this is documented here to flag the

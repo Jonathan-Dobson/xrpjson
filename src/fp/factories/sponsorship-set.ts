@@ -5,7 +5,7 @@
  * fee-and-reserve sponsorship relationship between two accounts. Validation
  * happens at construction; there is no way to construct an invalid tx.
  *
- *   import { sponsorshipSet } from 'xrplt/fp';
+ *   import { sponsorshipSet } from 'xrpjson';
  *   // Create (sponsor allocates a 5-reserve budget to the sponsee)
  *   const tx = sponsorshipSet({
  *     Account: SPONSOR,
@@ -32,7 +32,7 @@
  * ## Divergences
  *
  * The factory enforces six preclaim rules that the class API
- * (`src/transactions/sponsorship-set.ts`) skips. Each one is mandated by
+ * (the Class API's `SponsorshipSet`) skips. Each one is mandated by
  * the Sponsor amendment / `validateSponsorshipSet`.
  *
  *   1. `CounterpartySponsor` may only be supplied with `tfDeleteObject`.

@@ -23,7 +23,7 @@
  *   3. Does the API surface reduce to one function per type, with
  *      no class hierarchy and no central registry?
  *   4. Does tree-shaking actually work — i.e., can a consumer
- *      `import { payment } from 'xrplt/fp'` and pull in ONLY the
+ *      `import { payment } from 'xrpjson'` and pull in ONLY the
  *      Payment factory code, with no AMM/Vault/Loan code?
  */
 import { ValidationError } from '../errors.js';

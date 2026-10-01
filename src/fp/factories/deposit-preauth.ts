@@ -7,7 +7,7 @@
  * enabled, but the tx can be submitted ahead of time so the switch
  * is seamless.
  *
- *   import { depositPreauth } from 'xrplt/fp';
+ *   import { depositPreauth } from 'xrpjson';
  *   const tx = depositPreauth({
  *     Account,
  *     Authorize: OTHER_ACCOUNT,
@@ -34,7 +34,7 @@
  * The factory implements the canonical XRPL DepositPreauth shape from
  * xrpl.js / XLS-9d / XLS-70 / XRPL.org, which is a strict superset of
  * the validation the class API performs. The class at
- * `src/transactions/deposit-preauth.ts` is a pre-Credentials
+ * the Class API's `DepositPreauth` is a pre-Credentials
  * placeholder — it only models the two single-account fields
  * (`Authorize` / `Unauthorize`) and the "exactly one of two" rule.
  * Concretely:
@@ -44,7 +44,7 @@
  *      runs every guard at construction so an invalid `DepositPreauth`
  *      is a type error (the call throws). There is no way to construct
  *      an invalid frozen tx. Source: class `validate()` only runs when
- *      explicitly called (`src/transactions/deposit-preauth.ts:36-50`);
+ *      explicitly called (the Class API's `DepositPreauth`, lines 36-50);
  *      the factory mirrors the xrpl.js guard sequence
  *      (`DepositPreauth.ts:63-86`) at construction time.
  *
@@ -57,7 +57,7 @@
  *
  *   3. **"Exactly one of four" instead of "exactly one of two".**
  *      The class enforces the rule on two fields
- *      (`src/transactions/deposit-preauth.ts:38-43`):
+ *      (the Class API's `DepositPreauth`, lines 38-43):
  *      `Authorize XOR Unauthorize`. XRPL.org and xrpl.js both require
  *      EXACTLY ONE of `Authorize`, `Unauthorize`,
  *      `AuthorizeCredentials`, `UnauthorizeCredentials`. The factory

@@ -4,7 +4,7 @@
  * Withdraws First-Loss Capital from a `LoanBroker` ledger entry. Validation
  * happens at construction; there is no way to construct an invalid tx.
  *
- *   import { loanBrokerCoverWithdraw } from 'xrplt/fp';
+ *   import { loanBrokerCoverWithdraw } from 'xrpjson';
  *   const tx = loanBrokerCoverWithdraw({
  *     Account: 'rMX...',          // LoanBroker.Owner
  *     LoanBrokerID: 'A947...614',
@@ -25,7 +25,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/loan-broker-cover-withdraw.ts`, this
+ * Compared with the Class API's `LoanBrokerCoverWithdraw`, this
  * factory enforces preclaim guards the class API skips:
  *
  * 1. **`LoanBrokerID` must not be the all-zeros HASH256 value.**

@@ -5,7 +5,7 @@
  * a trust line token, or an MPT. Validation happens at construction;
  * there is no way to construct an invalid tx.
  *
- *   import { vaultCreate } from 'xrplt/fp';
+ *   import { vaultCreate } from 'xrpjson';
  *   const tx = vaultCreate({ Account, Asset: IOU_ASSET });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ WithdrawalPolicy: 0x0001 });

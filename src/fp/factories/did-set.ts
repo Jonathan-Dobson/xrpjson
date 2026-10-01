@@ -5,7 +5,7 @@
  * entry associated with the sending `Account`. Validation happens at
  * construction; there is no way to construct an invalid tx.
  *
- *   import { didSet } from 'xrplt/fp';
+ *   import { didSet } from 'xrpjson';
  *   const tx = didSet({
  *     Account,
  *     URI: '697066733A2F2F62616679626569676479727A7435...', // ipfs://...
@@ -31,7 +31,7 @@
  * The factory implements the canonical XRPL DIDSet shape from
  * xrpl.js / XLS-40 / xrpl.org, which is a strict superset of the
  * validation the class API performs. The class at
- * `src/transactions/did-set.ts` is a minimal placeholder — it only
+ * the Class API's `DIDSet` is a minimal placeholder — it only
  * enforces the "at least one of Data/DIDDocument/URI" rule at
  * `validate()`-call time. Concretely:
  *
@@ -40,7 +40,7 @@
  *      runs every guard at construction so an invalid `DIDSet` is a
  *      type error (the call throws). There is no way to construct an
  *      invalid frozen tx. Sources: class `validate()` runs only when
- *      explicitly called (`src/transactions/did-set.ts:37-42`); the
+ *      explicitly called (the Class API's `DIDSet`, lines 37-42); the
  *      factory mirrors the xrpl.js guard sequence
  *      (`DIDSet.ts:31-48`) at construction time.
  *
@@ -218,8 +218,8 @@ export function didSet(props: DIDSetProps): DIDSet {
 
   // ── At least one of Data / DIDDocument / URI must be present. ──
   // xrpl.js `validateDIDSet` lines 40-48; XRPL.org DIDSet "must include
-  // either Data, DIDDocument, or URI"; class `src/transactions/did-set
-  // .ts:39-41` enforces the same rule at `.validate()` time.
+  // either Data, DIDDocument, or URI"; the Class API's `DIDSet` enforces
+  // the same rule at `.validate()` time (lines 39-41).
   const hasData = props.Data !== undefined;
   const hasDIDDocument = props.DIDDocument !== undefined;
   const hasURI = props.URI !== undefined;

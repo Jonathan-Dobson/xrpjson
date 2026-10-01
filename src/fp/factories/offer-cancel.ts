@@ -4,7 +4,7 @@
  * Cancels an existing offer on the DEX. Validation happens at
  * construction; there is no way to construct an invalid tx.
  *
- *   import { offerCancel } from 'xrplt/fp';
+ *   import { offerCancel } from 'xrpjson';
  *   const tx = offerCancel({ Account, OfferSequence: 6 });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ OfferSequence: 7 });
@@ -14,7 +14,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/offer-cancel.ts`, this factory adds
+ * Compared with the Class API's `OfferCancel`, this factory adds
  * guards the class skips and tightens the spec compliance:
  *
  * - **`OfferSequence` must be a UInt32.** The class only checks

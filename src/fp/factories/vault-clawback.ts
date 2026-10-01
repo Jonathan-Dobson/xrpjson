@@ -11,7 +11,7 @@
  * invalid tx. Compare to the class-based equivalent, which exposes a
  * separate `.validate()` method you must remember to call.
  *
- *   import { vaultClawback } from 'xrplt/fp';
+ *   import { vaultClawback } from 'xrpjson';
  *   const tx = vaultClawback({ Account, VaultID, Holder, Amount: IOU_AMT });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Holder: 'r…' });
@@ -22,7 +22,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/vault-clawback.ts`, this factory adds
+ * Compared with the Class API's `VaultClawback`, this factory adds
  * guards the class skips:
  *
  * - **VaultID must be a 64-character hex string** (XLS-0065 §3.7.1 declares

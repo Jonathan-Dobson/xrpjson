@@ -7,7 +7,7 @@
  * average of the active votes. Validation happens at construction;
  * there is no way to construct an invalid tx.
  *
- *   import { ammVote } from 'xrplt/fp';
+ *   import { ammVote } from 'xrpjson';
  *   const tx = ammVote({
  *     Account,
  *     Asset:  { currency: 'XRP' },
@@ -25,7 +25,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/amm-vote.ts`, this factory adds
+ * Compared with the Class API's `AMMVote`, this factory adds
  * preclaim guards the class API skips. The class only calls `isRecord`
  * on `Asset` / `Asset2` and only checks the [0, 1000] numeric range on
  * `TradingFee` — it accepts any object for the asset fields and any

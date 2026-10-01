@@ -6,7 +6,7 @@
  * separate `.validate()` call after construction; this factory validates
  * at construction so an invalid tx can never exist.
  *
- *   import { ammCreate } from 'xrplt/fp';
+ *   import { ammCreate } from 'xrpjson';
  *   const tx = ammCreate({ Account, Amount, Amount2, TradingFee });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ TradingFee: 250 });
@@ -17,7 +17,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/amm-create.ts`, this factory adds
+ * Compared with the Class API's `AMMCreate`, this factory adds
  * guards the class skips:
  *
  * - **Account must be a valid XRPL classic (or X-) address**. The class

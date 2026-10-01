@@ -2,13 +2,13 @@
  * Public entry point for the functional transaction API.
  *
  * Usage:
- *   import { payment, accountSet } from 'xrplt/fp';
+ *   import { payment, accountSet } from 'xrpjson';
  *
  * Why a separate entry point:
  *   - Tree-shaking: a consumer that only imports `payment` should pull
  *     in ONLY the Payment factory code, not the AMM/Vault/Loan code.
- *   - Coexistence: the class-based API at `xrplt` keeps shipping for
- *     v0.4.x; users can opt in to the fp style independently.
+ *   - Coexistence: the class-based transaction API remains available
+ *     separately, so users can opt in to the fp style independently.
  *   - Testability: the fp tests live under `tests/fp/` and verify the
  *     frozen-shape contract independently of the class tests.
  *

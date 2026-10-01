@@ -21,7 +21,7 @@
  * Validation happens at construction; there is no way to construct an
  * invalid tx.
  *
- *   import { clawback } from 'xrplt/fp';
+ *   import { clawback } from 'xrpjson';
  *   // IOU clawback — the holder is encoded inside Amount.issuer:
  *   const iouTx = clawback({
  *     Account:        'rIssuer…',
@@ -42,7 +42,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/clawback.ts`, this factory adds
+ * Compared with the Class API's `Clawback`, this factory adds
  * preclaim guards the class API skips. Each is cited to the canonical
  * source.
  *

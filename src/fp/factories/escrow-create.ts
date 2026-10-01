@@ -6,7 +6,7 @@
  * certain conditions are met. Validation happens at construction;
  * there is no way to construct an invalid tx.
  *
- *   import { escrowCreate } from 'xrplt/fp';
+ *   import { escrowCreate } from 'xrpjson';
  *   const tx = escrowCreate({ Account, Amount, Destination, FinishAfter: 533171558 });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ CancelAfter: 533257958 });
@@ -20,7 +20,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/escrow-create.ts`, this factory adds
+ * Compared with the Class API's `EscrowCreate`, this factory adds
  * preclaim guards the class API skips:
  *
  * 1. **`Amount` must be strictly positive (non-zero, non-negative).**

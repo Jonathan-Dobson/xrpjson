@@ -4,7 +4,7 @@
  * Cashes an existing Check that was created by `checkCreate`. Validation
  * happens at construction; there is no way to construct an invalid tx.
  *
- *   import { checkCash } from 'xrplt/fp';
+ *   import { checkCash } from 'xrpjson';
  *   const tx = checkCash({ Account, CheckID, Amount: '100000000' });
  *   const j = tx.toJSON();
  *   const tx2 = tx.with({ Amount: '200000000' });
@@ -13,7 +13,7 @@
  *
  * ## Divergences
  *
- * Compared with `src/transactions/check-cash.ts`, this factory enforces
+ * Compared with the Class API's `CheckCash`, this factory enforces
  * five preclaim guards that the class API omits. The class only checks
  * that `CheckID` is a string, that `Amount`/`DeliverMin` are not both
  * present, and that at least one is present — it does no shape, range,
@@ -42,7 +42,7 @@
  *      `Amount | Currency Amount | Amount`. The class only enforces
  *      presence ("must have either Amount or DeliverMin") and never
  *      checks the shape of `Amount` when present — a malformed `Amount`
- *      would slip through `src/transactions/check-cash.ts:42–48`.
+ *      would slip through the Class API's `CheckCash` (lines 42–48).
  *
  *   4. **`Amount` must be strictly positive (non-zero, non-negative).**
  *      Source: xrpl.org `tem-codes.md` — `temBAD_AMOUNT` — "An amount
