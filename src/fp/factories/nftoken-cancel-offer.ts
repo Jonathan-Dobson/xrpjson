@@ -28,8 +28,14 @@
  *     `~/.mavis/docs.local/xrpl-standards/repo/XLS-0020-non-fungible-tokens/README.md`
  *     line 738.
  *   - Source: xrpl.org `nftokencanceloffer.md` line 46 ("Each entry must
- *     be a different object ID of an NFTokenOffer").
- *   - Source: xrpl.org `common-fields.md` `Hash256` (64-char hex).
+ *     be a different object ID of an NFTokenOffer"; Fields table gives
+ *     `NFTokenOffers` | Array | `Vector256`).
+ *   - Source: xrpl.org `binary-format.md` line 436 — `Hash256` is the
+ *     legacy name for `UInt256`, which "is typically represented in JSON
+ *     as hexadecimal" (64 chars). Note the field is the `VECTOR256`
+ *     **array**, not a scalar `Hash256`: the name describes an element.
+ *     XLS-20 §1.5.4 uses `Hash256` the same way, for the offer's scalar
+ *     `NFTokenID` (line 682).
  *
  * - **All-zero offer IDs are rejected** (`fixCleanup3_2_0` amendment).
  *   rippled's `NFTokenCancelOffer::preflight` rejects a list that
