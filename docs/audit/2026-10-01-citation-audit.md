@@ -118,23 +118,38 @@ with regression tests asserting the type.
 
 ## Known open items
 
-1. **`Hash256` in `common-fields.md`** — cited but absent from *both*
-   candidate resolutions, so no rewrite makes the current citation true. The
-   likely intent is `binary-format.md`. Needs a human decision.
+1. **`Hash256` in `nftoken-cancel-offer.ts`** — cited as
+   `xrpl.org common-fields.md Hash256`. That file contains neither the term nor
+   any NFToken field; there are two files by that name, under `transactions/`
+   and `ledger-data/`, and neither defines the type. The claim itself is sound
+   but mislabelled: `Hash256` is the legacy alias for `UInt256`
+   (`binary-format.md` line 436), XLS-20 uses `Hash256` (line 682) while
+   xrpl.org uses `UInt256` / `Vector256` (`nftokencreateoffer.md` line 39,
+   `nftokencanceloffer.md` line 46). The field is a `VECTOR256` *array* of
+   offer IDs, not a scalar `Hash256`. Re-source and correct the type name.
 2. **38 `AMBIGUOUS_FILENAME` citations** — 37 resolved by content during the
    audit; the resolutions were verified but the checker still reports them as
    ambiguous, so a re-run will keep flagging them until its disambiguation is
    improved.
-3. **Five factories embed spec citations inside runtime error messages**
-   (`amm-withdraw`, `xchain-account-create-commit`, `xchain-create-bridge`,
-   `xchain-create-claim-id`, `xchain-modify-bridge`). Useful — the error tells
-   you which rule you broke — but it makes citation accuracy a *runtime*
-   concern, so those line numbers will drift again. Worth a deliberate
-   decision: either pin them less precisely, or accept the maintenance.
+3. **Citations inside runtime error messages** — five factories embed spec
+   references in thrown error strings. **Decision: keep them for now.** The
+   error tells a developer which rule they broke, which is the package's whole
+   thesis. The cost is that citation accuracy becomes a runtime concern and
+   those line numbers drift; re-verify them during audits. Documented in
+   `CONTRIBUTING.md`.
 4. **32 "blank line" warnings were false alarms** — blank lines inside a
    correctly cited *range* are normal separators. The checker's advisory
    should be narrowed to "cited range contains no non-blank line" to avoid
    crying wolf on the next run.
+
+## Resolved after this audit
+
+- **Milvus collection collision.** `128-xrp-tx-builder` and this project both
+  targeted `codebase_chunks` on port 19530 — and 128 pointed at *this* project's
+  live stack, so indexing there would have overwritten this index. 128 now uses
+  port 19531, collection `codebase_chunks_xrplt`, HTTP :7800. This project owns
+  `codebase_chunks` on :19530. Recorded in `AGENTS.md`.
+
 
 ---
 

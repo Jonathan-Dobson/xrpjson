@@ -42,6 +42,20 @@ first change.
 - The index is a discovery aid, not an oracle. If a hit is about to become a
   claim in an answer or a code change, confirm it against the file first.
 
+### Do not collide with `128-xrp-tx-builder`
+
+That sibling checkout had the same `milvusPort` (19530) and `collectionName`
+(`codebase_chunks`), so indexing there would have overwritten this project's
+index — it pointed straight at the live `146-xrpjs` Milvus stack. **This
+project owns `codebase_chunks` on :19530.** `128-xrp-tx-builder` has been moved
+to port 19531, collection `codebase_chunks_xrplt`, HTTP :7800. Do not move this
+project back onto the defaults; if you change a port or collection name here,
+change it in both places or the collision returns.
+
+Note `.search-index-state.json` is written here on `main` by the watcher even
+though the tracked copy lives on `semantic-codesearch`. It is tooling state and
+should not be committed to `main`.
+
 ## Using it
 
 Full tool reference: `.github/instructions/codebase-semantic-search.instructions.md`

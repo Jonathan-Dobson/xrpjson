@@ -178,6 +178,7 @@ fresh. Read it before your first change.
 
 | Document | What it is |
 |---|---|
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | How to add a factory — the three-source verification loop, the `## Divergences` format, and the citation conventions |
 | [`CONTEXT.md`](./CONTEXT.md) | Glossary of the terms the factory docstrings use without defining — *frozen tx*, *divergence*, *preclaim*, *Class API*, *Source* vs *Cross-ref* |
 | [`docs/adr/`](./docs/adr/) | Architecture decisions: functional API over the class API, the frozen shape, XLS-spec precedence, and the rippled citation convention |
 | [`docs/audit/`](./docs/audit/) | Citation audits — what was checked, against which pinned sources, and what was corrected |
