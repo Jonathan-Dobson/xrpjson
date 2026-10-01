@@ -14,6 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { decode, encode } from 'xrpl';
 import { payment } from '../../src/fp/index.js';
+import { ValidationError } from '../../src/errors.js';
 
 const ACCOUNT_A = 'rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh';
 const ACCOUNT_B = 'rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe';
@@ -160,6 +161,20 @@ describe('fp/payment()', () => {
         DeliverMin: '500000',
       } as any),
     ).toThrow(/tfPartialPayment/);
+  });
+
+  it('throws ValidationError, not a bare Error, on DeliverMin without the flag', () => {
+    // Regression: this path once threw `new Error`, so a caller doing
+    // `instanceof ValidationError` mis-routed a user's typo into its
+    // "unexpected bug" branch. See errors.ts.
+    expect(() =>
+      payment({
+        Account: ACCOUNT_A,
+        Destination: ACCOUNT_B,
+        Amount: '1000000',
+        DeliverMin: '500000',
+      } as any),
+    ).toThrow(ValidationError);
   });
 
   it('accepts DeliverMin with tfPartialPayment flag (numeric)', () => {

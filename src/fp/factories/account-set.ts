@@ -5,6 +5,7 @@
  * a frozen object with bound validate/toJSON/with methods.
  */
 import { isAccount, isNumber, isString } from '../../validation/helpers.js';
+import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 export interface AccountSetProps {
@@ -66,7 +67,7 @@ export function accountSet(props: AccountSetProps): AccountSet {
       props.TickSize !== 0 &&
       (props.TickSize < 3 || props.TickSize > 15)
     ) {
-      throw new Error('AccountSet: TickSize must be 3-15 or 0');
+      throw new ValidationError('AccountSet: TickSize must be 3-15 or 0');
     }
   }
   if (props.Domain !== undefined) {

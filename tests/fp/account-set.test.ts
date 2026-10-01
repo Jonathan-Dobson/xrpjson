@@ -5,6 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { accountSet } from '../../src/fp/index.js';
+import { ValidationError } from '../../src/errors.js';
 
 const ACCOUNT_A = 'rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh';
 
@@ -24,6 +25,16 @@ describe('fp/accountSet()', () => {
     expect(() =>
       accountSet({ Account: ACCOUNT_A, TickSize: 16 }),
     ).toThrow(/TickSize/);
+  });
+
+  it('throws ValidationError, not a bare Error, on TickSize out of range', () => {
+    // Regression: this path once threw `new Error`, so a caller doing
+    // `instanceof ValidationError` mis-routed a user's typo into its
+    // "unexpected bug" branch. Every eager-validation failure throws
+    // ValidationError — see errors.ts.
+    expect(() => accountSet({ Account: ACCOUNT_A, TickSize: 16 })).toThrow(
+      ValidationError,
+    );
   });
 
   it('throws when Account is missing at construction', () => {
