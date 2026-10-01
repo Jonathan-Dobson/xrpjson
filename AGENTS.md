@@ -8,9 +8,9 @@ first change.
 - **`main`** — the only branch that ships. All product code lands here.
 - **`semantic-codesearch`** — infrastructure-only. It hosts the
   `codebase-semantic-search` dev dependency, its config
-  (`.codesearchrc.json`, `docker-compose.search.yml`,
-  `.search-index-state.json`), the generated agent-instruction files under
-  `.github/instructions/` and `.github/agents/`, and the MCP registration.
+  (`.codesearchrc.json`, `docker-compose.search.yml`), the generated
+  agent-instruction files under `.github/instructions/` and
+  `.github/agents/`, and the MCP registration.
 
 ### Hard rules for `semantic-codesearch`
 
@@ -19,9 +19,8 @@ first change.
    side-channel for the search stack, not a staging area for product work.
 2. **Never commit new code to it.** No features, bug fixes, refactors, tests,
    or dependency changes. The only commits it should ever receive are merges
-   *in from* `main`, plus the tooling's own state churn — e.g. a changed
-   `.search-index-state.json` after a reindex. A dirty tree there is normal
-   after indexing; it is not a signal to start writing code.
+   *in from* `main`. Index state is never committed — see the note at the end
+   of "Keeping the index fresh".
 3. **Keep it current with `main`.** Merge `main` into the branch
    (`git switch semantic-codesearch && git merge main`), resolve nothing but
    the shared config, then re-index.
@@ -52,9 +51,30 @@ to port 19531, collection `codebase_chunks_xrplt`, HTTP :7800. Do not move this
 project back onto the defaults; if you change a port or collection name here,
 change it in both places or the collision returns.
 
-Note `.search-index-state.json` is written here on `main` by the watcher even
-though the tracked copy lives on `semantic-codesearch`. It is tooling state and
-should not be committed to `main`.
+### `.search-index-state.json` is local-only
+
+It is gitignored on **both** branches and never committed. It records what the
+local indexer has already embedded; the index itself lives in the Milvus
+volume, not in git.
+
+It used to be tracked on `semantic-codesearch` only, which meant switching to
+`main` deleted it. With no bookkeeping, the next incremental reindex re-upserted
+every file without pruning the stale chunks, so the collection grew by exactly
+one batch of duplicates. If the chunk count ever jumps by a few hundred right
+after a branch switch, that file went missing — check it exists before
+reindexing.
+
+### Known tooling defects in `codebase-semantic-search@0.2.5`
+
+Neither is fixable in this repo without patching `node_modules` or upgrading:
+
+- `codebase_stats` reports `chunkCount: 0` immediately after a successful
+  `--full` rebuild (a flush/timing bug). Search itself works — do not conclude
+  the collection is empty from that number.
+- The chunker emits some content twice under different ids — the header chunk
+  uses `hashId(path, 1)` (`dist/chunker.js`) while a node chunk uses
+  `hashId(path, node.start)` — so searches return repeated or mismatched line
+  ranges. Roughly 10% of a top-20 result set.
 
 ## Using it
 
