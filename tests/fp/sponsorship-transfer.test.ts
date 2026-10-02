@@ -373,18 +373,41 @@ describe('fp/sponsorshipTransfer()', () => {
     });
 
     it('throws if SponsorFlags omits the spfSponsorReserve bit', () => {
+      // spfSponsorFee alone is a legal bit, but the Create/Reassign
+      // scenarios REQUIRE spfSponsorReserve (SponsorshipTransfer::preflight
+      // lines 120, 147 → `isReserveSponsored`). This test pins that
+      // requirement, not a complaint about the fee bit.
       expect(() =>
         sponsorshipTransfer({
           Account: SPONSEE_ACCOUNT,
           Flags: SponsorshipTransferFlags.tfSponsorshipCreate,
           ObjectID: OBJECT_ID,
           Sponsor: SPONSOR_ACCOUNT,
-          SponsorFlags: 0x00000001, // spfSponsorFee — wrong bit
+          SponsorFlags: 0x00000001, // spfSponsorFee only
         }),
       ).toThrow(/spfSponsorReserve/);
     });
 
-    it('throws if SponsorFlags sets any bit beyond spfSponsorReserve', () => {
+    it('accepts SponsorFlags with spfSponsorFee set alongside spfSponsorReserve', () => {
+      // rippled `TxFlags.h:461`:
+      //     spfSponsorFlagMask = ~(spfSponsorFee | spfSponsorReserve)
+      // so BOTH bits are outside the invalid set. xrpl.org
+      // `common-fields.md:190`: "Both flags can be used together in a
+      // single transaction." `STTx::getFeePayerID()` (STTx.cpp:676)
+      // reads spfSponsorFee to make the sponsor pay the fee, which is
+      // independent of sponsoring the reserve. Rejecting 0x03 made the
+      // factory refuse a valid transaction.
+      const tx = sponsorshipTransfer({
+        Account: SPONSEE_ACCOUNT,
+        Flags: SponsorshipTransferFlags.tfSponsorshipCreate,
+        ObjectID: OBJECT_ID,
+        Sponsor: SPONSOR_ACCOUNT,
+        SponsorFlags: 0x00000003, // spfSponsorFee | spfSponsorReserve
+      });
+      expect(tx.SponsorFlags).toBe(0x00000003);
+    });
+
+    it('throws if SponsorFlags sets a bit outside spfSponsorFee | spfSponsorReserve', () => {
       expect(() =>
         sponsorshipTransfer({
           Account: SPONSEE_ACCOUNT,
@@ -393,7 +416,7 @@ describe('fp/sponsorshipTransfer()', () => {
           Sponsor: SPONSOR_ACCOUNT,
           SponsorFlags: 0x00000006, // spfSponsorReserve | 0x04 (bogus)
         }),
-      ).toThrow(/only set the spfSponsorReserve bit/);
+      ).toThrow(/undefined bit\(s\).*0x4/s);
     });
 
     it('throws if SponsorFlags is not a number', () => {

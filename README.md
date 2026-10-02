@@ -181,7 +181,8 @@ fresh. Read it before your first change.
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | How to add a factory — the three-source verification loop, the `## Divergences` format, and the citation conventions |
 | [`CONTEXT.md`](./CONTEXT.md) | Glossary of the terms the factory docstrings use without defining — *frozen tx*, *divergence*, *preclaim*, *Class API*, *Source* vs *Cross-ref* |
 | [`docs/adr/`](./docs/adr/) | Architecture decisions: functional API over the class API, the frozen shape, XLS-spec precedence, and the rippled citation convention |
-| [`docs/audit/`](./docs/audit/) | Citation audits — what was checked, against which pinned sources, and what was corrected |
+| [`docs/audit/`](./docs/audit/) | Audits — what was checked, against which pinned sources, and what was corrected |
+| [`docs/audit/2026-10-02-flag-contradiction-audit.md`](./docs/audit/2026-10-02-flag-contradiction-audit.md) | Flag audit of all 63 `Flags`-bearing factories. Found **3 defects** — all cases where a factory rejected input rippled accepts — and fixed them: `sponsorshipTransfer` refused `spfSponsorFee`, `mptokenIssuanceCreate` ignored boolean-map `Flags`, `nftokenMint` refused `TransferFee: 0`. Also records the gaps (46 factories reason about flags not at all) and corrects the "7 of 63 validate" count, which was a grep artifact — 17 read `Flags` at runtime |
 
 ## License
 

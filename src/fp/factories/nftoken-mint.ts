@@ -59,10 +59,15 @@
  *     (`~/.mavis/docs.local/xrpl-standards/repo/XLS-0020-non-fungible-tokens/README.md`
  *     line 342: "Taxons have a valid range from 0x0 to 0xFFFFFFFF").
  *
- * - **`TransferFee` requires `tfTransferable`** — XLS-20 §1.5.1 (line 367)
- *   and xrpl.org `nftokenmint.md` (line 52) both state: "If this field
- *   is provided, the transaction MUST have the `tfTransferable` flag
- *   enabled." The class does not check this coupling.
+ * - **A non-zero `TransferFee` requires `tfTransferable`** — XLS-20 §1.5.1
+ *   (line 367) and xrpl.org `nftokenmint.md` (line 52) both state: "If this
+ *   field is provided, the transaction MUST have the `tfTransferable` flag
+ *   enabled." The class does not check this coupling. We gate on a
+ *   **non-zero** TransferFee, matching rippled's implementation rather
+ *   than the prose's field-presence test — see the DIVERGENCE note at the
+ *   check below.
+ *   - Source: rippled `NFTokenMint::preflight` line 94 —
+ *     `if (f > 0u && !ctx.tx.isFlag(tfTransferable)) return temMALFORMED;`
  *   - Source: XLS-20 §1.5.1 line 367: "The field MUST NOT be present if
  *     the `tfTransferable` flag is not set. If it is, the transaction
  *     should fail and a fee should be claimed."
@@ -315,9 +320,34 @@ export function nftokenMint(props: NftokenMintProps): NftokenMint {
   }
 
   // ── TransferFee ↔ tfTransferable coupling ── XLS-20 §1.5.1 line 367.
+  //
+  // The gate is `TransferFee > 0`, NOT "TransferFee is present". rippled
+  // guards the coupling with `f > 0u` (NFTokenMint.cpp:94), so an explicit
+  // `TransferFee: 0` is accepted without `tfTransferable`. Testing for
+  // mere presence rejected a transaction rippled accepts.
+  //
+  // DIVERGENCE FROM THE PROSE (deliberate, behaviour matches rippled):
+  // the written specs gate on field *presence*, not value —
+  //   - XLS-20 §1.5.1 line 367: "The field MUST NOT be present if the
+  //     `tfTransferable` flag is not set. If it is, the transaction
+  //     should fail and a fee should be claimed."
+  //   - xrpl.org `nftokenmint.md` line 52: "If this field is provided,
+  //     the transaction MUST have the `tfTransferable` flag enabled."
+  // rippled implements the value test instead. We follow the
+  // implementation, because the library's contract is to emit
+  // transactions the ledger accepts; the prose's stated purpose (the
+  // trailing "and a fee should be claimed") does not apply to a zero
+  // fee. Flip the `> 0` to `!== undefined` to follow the prose instead.
+  //
+  //   - Source: rippled `NFTokenMint::preflight` line 94 —
+  //     "If a non-zero TransferFee is set then the tfTransferable flag
+  //     must also be set." → `if (f > 0u && !ctx.tx.isFlag(tfTransferable))`
+  //   - Cross-ref: `TransferFee` is range-checked above to an integer in
+  //     [0, 50000], so `> 0` is a safe narrowing.
   const TF_TRANSFERABLE = 0x00000008;
   if (
     props.TransferFee !== undefined &&
+    props.TransferFee > 0 &&
     (numericFlags & TF_TRANSFERABLE) !== TF_TRANSFERABLE
   ) {
     throw new ValidationError(

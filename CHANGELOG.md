@@ -13,7 +13,48 @@ a reader can tell a ledger-facing behaviour change from an internal cleanup.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+Three **over-strict** flag validations, all found by
+[`docs/audit/2026-10-02-flag-contradiction-audit.md`](./docs/audit/2026-10-02-flag-contradiction-audit.md).
+Each refused a transaction rippled accepts — the library could not build
+input the ledger would take. Ledger-verified on XRPL testnet.
+
+- **`sponsorshipTransfer` refused `spfSponsorFee`.** `SponsorFlags` was
+  restricted to the `spfSponsorReserve` bit alone, so the documented
+  fee-and-reserve combination (`SponsorFlags: 3`) was unconstructible.
+  rippled keeps the two bits in two independent, non-overlapping predicates —
+  `isFeeSponsored` and `isReserveSponsored`
+  (`include/xrpl/ledger/helpers/SponsorHelpers.h:32-45`) — and its
+  `spfSponsorFlagMask` excludes *both* from the invalid set
+  (`TxFlags.h:461`). xrpl.js 5.3.0 agrees, using
+  `validFlags = spfSponsorFee | spfSponsorReserve`
+  (`models/transactions/common.js:316`). The mask now matches.
+
+- **`mptokenIssuanceCreate` ignored a boolean-map `Flags`.** A
+  `Flags: { tfMPTCanTransfer: true }` object was collapsed to `0` before the
+  cross-field gates, so a caller who correctly set the bit was told their
+  `TransferFee` needed a flag they had just set. The map is a documented
+  input form — `MPTokenIssuanceCreateFlagsInterface` declares it — and the
+  sibling `mptokenIssuanceSet` factory already resolved it correctly. The two
+  MPT factories disagreed with each other; they no longer do.
+
+- **`nftokenMint` rejected `TransferFee: 0` without `tfTransferable`.** The
+  gate was on field *presence*; rippled gates on *value*
+  (`NFTokenMint.cpp:94`, `f > 0u`). XLS-20 §1.5.1 line 367 and xrpl.org
+  `nftokenmint.md` line 52 both say presence, so the old behaviour was
+  defensible against the prose and wrong against the implementation. **Settled
+  on a live ledger:** `TransferFee: 0` is accepted and `TransferFee: 1` is
+  rejected under identical flag state. The prose is the thing that is wrong;
+  the divergence is documented at the check.
+
+### Added
+
+- `integration` coverage for all three, in the downstream harness
+  [`173-xrpjson-testing`](https://github.com/Jonathan-Dobson/173-xrpjson-testing)
+  as suite `[15]` (`15-flag-defect-verification.mjs`) plus a
+  `xrpl@5.3.0`-backed check for `SponsorshipTransfer`. 10 passed, 0 failed,
+  1 skipped. 9 new unit tests here (+2,849 → +2,858).
 
 ## [1.2.0] — 2026-10-02
 

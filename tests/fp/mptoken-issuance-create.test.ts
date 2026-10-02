@@ -100,6 +100,61 @@ describe('fp/mptokenIssuanceCreate()', () => {
     });
   });
 
+  // ─── boolean-map Flags ─────────────────────────────────────────────
+  //
+  // `Flags` has two documented input forms (see
+  // `MPTokenIssuanceCreateProps`): a numeric bitmask, or a boolean map
+  // keyed by the `tfMPT*` names. The map form used to be collapsed to `0`
+  // before the cross-field gates ran, so a caller who correctly wrote
+  // `{ tfMPTCanTransfer: true }` was told their TransferFee needed a flag
+  // they had just set — a transaction rippled accepts.
+  //
+  //   - Source: xrpl.org `mptokenissuancecreate.md` line 45 — "A non-zero
+  //     value is only valid if the `tfMPTCanTransfer` flag is also set."
+  //   - Source: xrpl.org `mptokenissuancecreate.md` line 44 — "You must
+  //     enable the `tfMPTRequireAuth` flag to use permissioned domains."
+  //   - Cross-ref: `mptoken-issuance-set.ts` already resolved the map form
+  //     to bits before gating, so the two factories disagreed.
+
+  describe('boolean-map Flags form', () => {
+    it('honours tfMPTCanTransfer from a boolean map for the TransferFee gate', () => {
+      const tx = base({ TransferFee: 100, Flags: { tfMPTCanTransfer: true } });
+      expect(tx.TransferFee).toBe(100);
+    });
+
+    it('honours tfMPTRequireAuth from a boolean map for the DomainID gate', () => {
+      const tx = base({ DomainID: VALID_DOMAIN, Flags: { tfMPTRequireAuth: true } });
+      expect(tx.DomainID).toBe(VALID_DOMAIN);
+    });
+
+    it('accepts both capability flags in one boolean map', () => {
+      const tx = base({
+        TransferFee: 100,
+        DomainID: VALID_DOMAIN,
+        Flags: { tfMPTCanTransfer: true, tfMPTRequireAuth: true },
+      });
+      expect(tx.TransferFee).toBe(100);
+      expect(tx.DomainID).toBe(VALID_DOMAIN);
+    });
+
+    it('still throws when the boolean map omits the required capability', () => {
+      expect(() =>
+        base({ TransferFee: 100, Flags: { tfMPTRequireAuth: true } }),
+      ).toThrow(/tfMPTCanTransfer/);
+    });
+
+    it('treats an explicit false in a boolean map as unset', () => {
+      expect(() =>
+        base({ TransferFee: 100, Flags: { tfMPTCanTransfer: false } }),
+      ).toThrow(/tfMPTCanTransfer/);
+    });
+
+    it('ignores unknown boolean-map keys (forward-compatible)', () => {
+      const tx = base({ Flags: { tfSomeFutureFlag: true } });
+      expect(tx.Account).toBe(ISSUER);
+    });
+  });
+
   describe('MaximumAmount validation', () => {
     it('accepts a normal MaximumAmount', () => {
       const tx = base({ MaximumAmount: '1000000' });

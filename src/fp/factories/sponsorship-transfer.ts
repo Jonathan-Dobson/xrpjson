@@ -111,9 +111,32 @@ const HASH256_LENGTH = 64;
 
 // Sponsor flags bitfield. Mirrors the xrpl.js `SponsorFlags` enum
 // (`packages/xrpl/src/models/transactions/common.ts` lines 660–665).
-// For the three documented scenarios only `spfSponsorReserve` is set;
-// any other bit is rejected by the factory.
+//
+// BOTH bits are legal on a SponsorshipTransfer:
+//   - `spfSponsorReserve` is *required* for the Create and Reassign
+//     scenarios (the sponsorship being established is a reserve
+//     sponsorship).
+//   - `spfSponsorFee` is legal on ANY transaction type and is orthogonal
+//     to the reserve bit — it only says the sponsor pays the fee. rippled
+//     reads it in `STTx::getFeePayerID()`.
+//   - Source: rippled `TxFlags.h:459-461` —
+//     `spfSponsorFlagMask = ~(spfSponsorFee | spfSponsorReserve)`, i.e.
+//     both bits are outside the invalid set.
+//   - Source: xrpl.org `common-fields.md:196` — "The `spfSponsorFee`
+//     flag can be used with any transaction type."
+//   - Source: xrpl.org `common-fields.md:190` — "Both flags can be used
+//     together in a single transaction."
+//   - Cross-ref: rippled `SponsorshipTransfer::preflight` lines 120, 147
+//     require `isReserveSponsored` but never forbid `spfSponsorFee`.
+//
+// Rejecting `spfSponsorFee` here made the factory refuse a transaction
+// rippled accepts.
+const SPF_SPONSOR_FEE = 0x00000001;
 const SPF_SPONSOR_RESERVE = 0x00000002;
+
+// The set of bits rippled permits in `SponsorFlags` — the complement of
+// rippled's own `spfSponsorFlagMask`.
+const VALID_SPONSOR_FLAGS_MASK = SPF_SPONSOR_FEE | SPF_SPONSOR_RESERVE;
 
 // ─── Public types ────────────────────────────────────────────────────
 
@@ -398,12 +421,13 @@ export function sponsorshipTransfer(
         'SponsorshipTransfer: SponsorFlags must have the spfSponsorReserve bit set for tfSponsorshipCreate and tfSponsorshipReassign scenarios',
       );
     }
-    // Other bits in SponsorFlags are reserved / not allowed for the
-    // three documented scenarios. Reject anything beyond the reserve
-    // bit to surface client mistakes early.
-    if ((props.SponsorFlags & ~SPF_SPONSOR_RESERVE) !== 0) {
+    // Reject only bits rippled also rejects. `spfSponsorFee` is legal
+    // here, so `SponsorFlags: 3` (fee + reserve) must be accepted.
+    // `&` is int32 in JS, so the negated mask is handled correctly here.
+    const undefinedSponsorBits = props.SponsorFlags & ~VALID_SPONSOR_FLAGS_MASK;
+    if (undefinedSponsorBits !== 0) {
       throw new ValidationError(
-        'SponsorshipTransfer: SponsorFlags may only set the spfSponsorReserve bit (0x00000002)',
+        `SponsorshipTransfer: SponsorFlags contains undefined bit(s) (0x${undefinedSponsorBits.toString(16)}); only spfSponsorFee (0x00000001) and spfSponsorReserve (0x00000002) are allowed`,
       );
     }
 

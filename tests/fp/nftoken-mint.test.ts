@@ -150,12 +150,26 @@ describe('fp/nftokenMint()', () => {
   // ─── TransferFee validation ─────────────────────────────────────────
 
   describe('TransferFee validation', () => {
-    it('throws on TransferFee=0 without tfTransferable (field provided ⇒ MUST have flag)', () => {
-      // XLS-20 §1.5.1 line 367: "The field MUST NOT be present if the
-      // tfTransferable flag is not set." Per xrpl.org: "If this field is
-      // provided, the transaction MUST have the tfTransferable flag
-      // enabled." Field-presence is what gates the requirement, not value.
-      expect(() => make({ TransferFee: 0 })).toThrow(/tfTransferable/);
+    it('accepts TransferFee=0 without tfTransferable (rippled gates on value, not presence)', () => {
+      // rippled `NFTokenMint::preflight` line 94 gates the coupling on
+      // the VALUE, not on field presence:
+      //     if (f > 0u && !ctx.tx.isFlag(tfTransferable)) return temMALFORMED;
+      // so `TransferFee: 0` with no tfTransferable is accepted. The
+      // previous expectation here (that 0 must throw) made the factory
+      // refuse a transaction the ledger accepts. The XLS-20 / xrpl.org
+      // prose gates on presence instead — see the DIVERGENCE comment in
+      // nftoken-mint.ts for why we follow the implementation.
+      const tx = make({ TransferFee: 0 });
+      expect(tx.TransferFee).toBe(0);
+    });
+
+    it('throws on a non-zero TransferFee without tfTransferable', () => {
+      expect(() => make({ TransferFee: 1 })).toThrow(/tfTransferable/);
+    });
+
+    it('accepts TransferFee=0 with tfTransferable', () => {
+      const tx = make({ TransferFee: 0, Flags: 0x00000008 });
+      expect(tx.TransferFee).toBe(0);
     });
 
     it('accepts TransferFee=50000 with tfTransferable', () => {

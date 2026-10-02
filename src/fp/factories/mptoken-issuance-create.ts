@@ -44,6 +44,43 @@ const TF_MPT_CAN_TRANSFER = 0x00000020;
 // Capable-flag bitmask for `tfMPTRequireAuth` (gates DomainID).
 const TF_MPT_REQUIRE_AUTH = 0x00000004;
 
+// Closed set of keys accepted by the boolean-map form of `Flags`, with
+// their numeric bit values. Mirrors xrpl.js's `convertTxFlagsToNumber`
+// (`packages/xrpl/src/models/utils/flags.ts:174–201`), localized here so
+// the factory has no cross-transaction dependency. The key set mirrors
+// `MPTokenIssuanceCreateFlagsInterface` (src/types/flags.ts:224–233).
+//
+// A boolean-map `Flags` is a first-class, documented input form: the
+// library's own props type declares it, so its bits are real bits and
+// must be honoured by the cross-field gates below. Collapsing it to `0`
+// made `{ tfMPTCanTransfer: true }` invisible to the TransferFee gate.
+const VALID_FLAGS_INTERFACE_KEYS: ReadonlyMap<string, number> = new Map([
+  ['tfMPTCanLock', 0x00000002],
+  ['tfMPTRequireAuth', TF_MPT_REQUIRE_AUTH],
+  ['tfMPTCanEscrow', 0x00000008],
+  ['tfMPTCanTrade', 0x00000010],
+  ['tfMPTCanTransfer', TF_MPT_CAN_TRANSFER],
+  ['tfMPTCanClawback', 0x00000040],
+  ['tfMPTCanHoldConfidentialBalance', 0x00000080],
+]);
+
+/**
+ * Resolve a possibly-boolean-map `Flags` value to its numeric bitmask.
+ * Unknown keys are ignored rather than rejected, matching the
+ * forward-compatible policy used by `loan-manage.ts` — a future global
+ * flag must not break an existing caller.
+ */
+function flagsToNumber(flags: unknown): number {
+  if (typeof flags === 'number') return flags;
+  if (typeof flags !== 'object' || flags === null) return 0;
+  let n = 0;
+  for (const [k, v] of Object.entries(flags as Record<string, unknown>)) {
+    const bit = VALID_FLAGS_INTERFACE_KEYS.get(k);
+    if (bit !== undefined && v === true) n |= bit;
+  }
+  return n;
+}
+
 // ─── Public types ────────────────────────────────────────────────────
 
 export interface MptokenIssuanceCreateProps {
@@ -116,11 +153,13 @@ export function mptokenIssuanceCreate(
     isAccount,
   );
 
-  // Numeric flags for cross-field gating. When the caller supplies a
-  // boolean-map `Flags` object, we treat it as "no flag bits set" for the
-  // purpose of bitwise checks — same policy as the class version, which
-  // only inspects numeric flags for the gating rules below.
-  const flags = (typeof props.Flags === 'number' ? props.Flags : 0) as number;
+  // Numeric flags for cross-field gating. A boolean-map `Flags` is
+  // resolved to its real bits via `flagsToNumber` — it is a
+  // first-class input form declared by `MptokenIssuanceCreateProps`, so
+  // treating it as "no bits set" made `{ tfMPTCanTransfer: true }` fail
+  // the TransferFee gate below and rejected a transaction rippled
+  // accepts. `mptoken-issuance-set.ts` already resolved it correctly.
+  const flags = flagsToNumber(props.Flags);
 
   // ─── TransferFee ───
   if (props.TransferFee !== undefined) {
