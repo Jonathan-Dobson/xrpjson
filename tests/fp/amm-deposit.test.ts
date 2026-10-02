@@ -234,23 +234,50 @@ describe('fp/ammDeposit()', () => {
       ).toThrow(/got multiple/);
     });
 
-    it('accepts a single mode flag combined with a global flag', () => {
-      // tfFullyCanonicalSig (0x00000002) is a global flag, outside the
-      // deposit-mode mask, so it must not count toward the exactly-one rule.
-      const tx = make({
-        Flags: AMMDepositFlags.tfSingleAsset | 0x00000002,
-      });
-      expect(tx.Flags).toBe(AMMDepositFlags.tfSingleAsset | 0x00000002);
+    it('accepts a single mode flag combined with a universal flag', () => {
+      // tfFullyCanonicalSig (0x80000000) is in rippled's `tfUniversal`
+      // (TxFlags.h:43-46), so it is legal on AMMDeposit and must not count
+      // toward the exactly-one rule.
+      //
+      // `>>> 0` is required: JS bitwise OR is signed 32-bit, so
+      // 0x00080000 | 0x80000000 evaluates to a NEGATIVE number. Without the
+      // coercion this test would silently pin a negative Flags value — it
+      // still passes, but for the wrong reason, exactly as suite [14]'s
+      // first AMM-4 run did against the live ledger.
+      const flags = (AMMDepositFlags.tfSingleAsset | 0x80000000) >>> 0;
+      expect(flags).toBe(0x80080000);
+      const tx = make({ Flags: flags });
+      expect(tx.Flags).toBe(0x80080000);
     });
 
-    it('ignores a withdraw-only bit when counting deposit modes', () => {
-      // 0x00020000 is tfWithdrawAll, an AMMWithdraw mode. It is not a
-      // deposit mode, so a lone tfSingleAsset + tfWithdrawAll is still
-      // exactly one *deposit* mode and must be accepted.
-      const tx = make({
-        Flags: AMMDepositFlags.tfSingleAsset | 0x00020000,
-      });
-      expect(tx.Flags).toBe(AMMDepositFlags.tfSingleAsset | 0x00020000);
+    it('rejects a withdraw-only bit, even alongside a valid mode', () => {
+      // Membership, not cardinality. rippled runs `getFlagsMask` FIRST and
+      // answers `temINVALID_FLAG` for any bit that is not legal on an
+      // AMMDeposit (TxFlags.h:264-266, 169-176, 43-46). `tfWithdrawAll`
+      // (0x00020000) is an AMMWithdraw mode, so this tx still contains
+      // exactly one *deposit* mode — but the ledger refuses the whole
+      // transaction anyway. Verified live against testnet: the ledger
+      // returns `temINVALID_FLAG`, not `temMALFORMED`.
+      //
+      // This test previously asserted the opposite. It pinned the Bug #7
+      // gap; it is kept (inverted) because it is the one that proves the
+      // membership check exists.
+      expect(() =>
+        make({ Flags: AMMDepositFlags.tfSingleAsset | 0x00020000 }),
+      ).toThrow(/not valid for this transaction type/);
+    });
+
+    it('rejects a lone bit that is neither a mode nor universal', () => {
+      expect(() => make({ Flags: 0x00000002 })).toThrow(
+        /not valid for this transaction type/);
+    });
+
+    it('accepts a mode flag plus a universal flag that is a mode bit of another tx', () => {
+      // tfInnerBatchTxn (0x40000000) is in tfUniversal (TxFlags.h:45), so it is
+      // legal on any transaction and must not trip the membership check.
+      const flags = (AMMDepositFlags.tfSingleAsset | 0x40000000) >>> 0;
+      const tx = make({ Flags: flags });
+      expect(tx.Flags).toBe(0x40080000);
     });
 
     it('accepts a boolean AMMDepositFlagsInterface with one mode', () => {

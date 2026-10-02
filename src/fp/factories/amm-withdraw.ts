@@ -126,6 +126,22 @@ const AMM_WITHDRAW_FLAGS_MASK = AMM_WITHDRAW_FLAG_BITS.reduce<number>(
   0,
 );
 
+// rippled `TxFlags.h:43-46` — `tfUniversal = tfFullyCanonicalSig |
+// tfInnerBatchTxn`. The only two bits legal on every transaction type, and
+// `tfAMMWithdrawMask` subtracts them, so they are legal here too.
+const UNIVERSAL_FLAGS = 0x80000000 | 0x40000000;
+
+// rippled builds `tfAMMWithdrawMask` as `~(tfUniversal | <the seven withdraw
+// flags>)` via the `TO_MASK` macro (`TxFlags.h:264-266`, 178-186). That mask is
+// the set of INVALID bits; its complement is the set of valid ones. The ledger
+// checks this *before* the exactly-one rule and answers `temINVALID_FLAG`.
+//
+// Counting modes alone is not enough: `tfTwoAssetIfEmpty` (0x00800000) is a
+// deposit mode, so `tfSingleAsset | tfTwoAssetIfEmpty` still contains exactly
+// one withdraw mode — but the ledger refuses the whole transaction, because
+// that bit is not legal on an AMMWithdraw at all.
+const AMM_WITHDRAW_VALID_FLAGS = UNIVERSAL_FLAGS | AMM_WITHDRAW_FLAGS_MASK;
+
 // ─── Public types ────────────────────────────────────────────────────
 
 export interface AmmWithdrawProps {
@@ -279,12 +295,29 @@ export function ammWithdraw(props: AmmWithdrawProps): AmmWithdraw {
     );
   }
 
-  // ── Flags ── exactly one AMM-withdraw mode flag bit must be set
-  //    (xrpl.org `ammwithdraw.md`: "You must specify **exactly one**
-  //    of these flags, plus any global flags"). We always validate —
-  //    an absent `Flags`, an explicit `undefined`, and `Flags: 0` all
-  //    represent "no mode flag set" and must throw.
+  // ── Flags ── two checks, in rippled's order. ──
+  //
+  //    (a) MEMBERSHIP — every bit set must be legal on an AMMWithdraw, i.e.
+  //        within `(~(tfUniversal | the seven withdraw flags))`. rippled
+  //        answers `temINVALID_FLAG` here (TxFlags.h:264-266, 178-186, 43-46).
+  //    (b) CARDINALITY — exactly one withdraw-mode bit. rippled answers
+  //        `temMALFORMED` here (xrpl.org `ammwithdraw.md` line 107: "You
+  //        must specify **exactly one** of these flags, plus any global
+  //        flags").
+  //
+  //    Both run unconditionally: an absent `Flags`, an explicit `undefined`,
+  //    and `Flags: 0` all mean "no mode flag set" and must throw.
   const numericFlags = flagsToNumber(props.Flags);
+
+  // `>>> 0` is required — JS bitwise operators are signed 32-bit, so `~mask`
+  // is negative and any value including tfFullyCanonicalSig (0x80000000)
+  // overflows without coercion.
+  if (((numericFlags & ~AMM_WITHDRAW_VALID_FLAGS) >>> 0) !== 0) {
+    throw new ValidationError(
+      'AMMWithdraw: Flags contains a bit that is not valid for this transaction type (only tfFullyCanonicalSig, tfInnerBatchTxn, and the seven AMM-withdraw mode flags are allowed)',
+    );
+  }
+
   const ammFlagBits = numericFlags & AMM_WITHDRAW_FLAGS_MASK;
   if (ammFlagBits === 0) {
     throw new ValidationError(

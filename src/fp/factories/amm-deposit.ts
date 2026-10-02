@@ -122,6 +122,22 @@ const AMM_DEPOSIT_FLAGS_MASK = AMM_DEPOSIT_FLAG_BITS.reduce<number>(
   0,
 );
 
+// rippled `TxFlags.h:43-46` — `tfUniversal = tfFullyCanonicalSig |
+// tfInnerBatchTxn`. These are the only two bits legal on every transaction
+// type, and `tfAMMDepositMask` subtracts them, so they are legal here too.
+const UNIVERSAL_FLAGS = 0x80000000 | 0x40000000;
+
+// rippled builds `tfAMMDepositMask` as `~(tfUniversal | <the six deposit
+// flags>)` via the `TO_MASK` macro (`TxFlags.h:264-266`). That mask is the set
+// of INVALID bits; its complement is the set of valid ones. The ledger checks
+// this *before* the exactly-one rule and answers `temINVALID_FLAG`.
+//
+// Counting modes alone is not enough: `tfWithdrawAll` (0x00020000) is not a
+// deposit mode, so `tfSingleAsset | tfWithdrawAll` still contains exactly one
+// deposit mode — but the ledger refuses the whole transaction, because that
+// bit is not legal on an AMMDeposit at all.
+const AMM_DEPOSIT_VALID_FLAGS = UNIVERSAL_FLAGS | AMM_DEPOSIT_FLAGS_MASK;
+
 // ─── Public types ────────────────────────────────────────────────────
 
 export interface AmmDepositProps {
@@ -247,17 +263,34 @@ export function ammDeposit(props: AmmDepositProps): AmmDeposit {
     throw new ValidationError('AMMDeposit: EPrice must be an Amount');
   }
 
-  // ── Flags ── exactly one AMM-deposit mode flag bit must be set
-  //    (xrpl.org `ammdeposit.md` line 129: "You must specify **exactly
-  //    one** of these flags, plus any global flags"). We always validate —
-  //    an absent `Flags`, an explicit `undefined`, and `Flags: 0` all
-  //    represent "no mode flag set" and must throw. Global flags (e.g.
-  //    tfFullyCanonicalSig) sit outside AMM_DEPOSIT_FLAGS_MASK and are
-  //    correctly ignored by this check.
+  // ── Flags ── two checks, in rippled's order. ──
+  //
+  //    (a) MEMBERSHIP — every bit set must be legal on an AMMDeposit, i.e.
+  //        within `(~(tfUniversal | the six deposit flags))`. rippled answers
+  //        `temINVALID_FLAG` here (TxFlags.h:264-266, 169-176, 43-46).
+  //    (b) CARDINALITY — exactly one deposit-mode bit. rippled answers
+  //        `temMALFORMED` here (AMMDeposit.cpp:72; xrpl.org `ammdeposit.md`
+  //        line 129: "You must specify **exactly one** of these flags, plus
+  //        any global flags").
+  //
+  //    Both run unconditionally: an absent `Flags`, an explicit `undefined`,
+  //    and `Flags: 0` all mean "no mode flag set" and must throw.
   //
   //    Placed last so that field-level errors still surface first, which
   //    keeps the more specific message for the more specific mistake.
   const numericFlags = flagsToNumber(props.Flags);
+
+  // `>>> 0` is required. JS bitwise operators are signed 32-bit, so `~mask` is
+  // negative and composing a value that includes tfFullyCanonicalSig
+  // (0x80000000) overflows to a negative number unless coerced. Without it the
+  // comparison is wrong and the test values built in the suite are not the
+  // numbers they look like.
+  if (((numericFlags & ~AMM_DEPOSIT_VALID_FLAGS) >>> 0) !== 0) {
+    throw new ValidationError(
+      'AMMDeposit: Flags contains a bit that is not valid for this transaction type (only tfFullyCanonicalSig, tfInnerBatchTxn, and the six AMM-deposit mode flags are allowed)',
+    );
+  }
+
   const ammFlagBits = numericFlags & AMM_DEPOSIT_FLAGS_MASK;
   if (ammFlagBits === 0) {
     throw new ValidationError(

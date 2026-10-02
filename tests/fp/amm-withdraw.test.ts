@@ -440,13 +440,71 @@ describe('fp/ammWithdraw()', () => {
 
     it('accepts a mode flag OR-ed with the canonical tfFullyCanonicalSig global flag', () => {
       const TF_FULLY_CANONICAL_SIG = 0x80000000;
+      // `>>> 0` is required: JS bitwise OR is signed 32-bit, so
+      // 0x00010000 | 0x80000000 evaluates to a NEGATIVE number. Without the
+      // coercion this test still passes — both sides use the same expression —
+      // but it would be pinning a negative Flags value.
+      const flags = (TF_LP_TOKEN | TF_FULLY_CANONICAL_SIG) >>> 0;
       const tx = ammWithdraw({
         Account: ACCOUNT,
         Asset: XRP_ASSET,
         Asset2: IOU_ASSET,
-        Flags: TF_LP_TOKEN | TF_FULLY_CANONICAL_SIG,
+        Flags: flags,
       });
-      expect(tx.Flags).toBe(TF_LP_TOKEN | TF_FULLY_CANONICAL_SIG);
+      expect(tx.Flags).toBe(0x80010000);
+    });
+  });
+
+  // rippled applies MEMBERSHIP before CARDINALITY: `getFlagsMask` returns
+  // `tfAMMWithdrawMask` = `~(tfUniversal | the seven withdraw flags)`
+  // (TxFlags.h:264-266, 178-186, 43-46) and answers `temINVALID_FLAG` for any
+  // bit outside it. Counting modes alone cannot catch a bit that is legal
+  // elsewhere in the AMM family but not here.
+  describe('Flags membership (bit must be legal on AMMWithdraw)', () => {
+    const TF_TWO_ASSET_IF_EMPTY = 0x00800000; // an AMMDeposit-only mode
+
+    it('rejects a deposit-only bit, even alongside a valid mode', () => {
+      expect(() =>
+        ammWithdraw({
+          Account: ACCOUNT,
+          Asset: XRP_ASSET,
+          Asset2: IOU_ASSET,
+          Flags: TF_SINGLE_ASSET | TF_TWO_ASSET_IF_EMPTY,
+        }),
+      ).toThrow(/not valid for this transaction type/);
+    });
+
+    it('rejects a lone deposit-only bit', () => {
+      expect(() =>
+        ammWithdraw({
+          Account: ACCOUNT,
+          Asset: XRP_ASSET,
+          Asset2: IOU_ASSET,
+          Flags: TF_TWO_ASSET_IF_EMPTY,
+        }),
+      ).toThrow(/not valid for this transaction type/);
+    });
+
+    it('rejects a bit that is neither a mode nor universal', () => {
+      expect(() =>
+        ammWithdraw({
+          Account: ACCOUNT,
+          Asset: XRP_ASSET,
+          Asset2: IOU_ASSET,
+          Flags: TF_SINGLE_ASSET | 0x00000002,
+        }),
+      ).toThrow(/not valid for this transaction type/);
+    });
+
+    it('accepts tfInnerBatchTxn, the other universal flag', () => {
+      const flags = (TF_SINGLE_ASSET | 0x40000000) >>> 0;
+      const tx = ammWithdraw({
+        Account: ACCOUNT,
+        Asset: XRP_ASSET,
+        Asset2: IOU_ASSET,
+        Flags: flags,
+      });
+      expect(tx.Flags).toBe(0x40080000);
     });
   });
 
