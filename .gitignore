@@ -40,3 +40,8 @@ dist
 # Scratch
 scratch/
 .worktrees/
+
+# npm cache (this sandbox cannot chown npm's cache dirs, so they land root-owned
+# and break later `npm` invocations with EPERM. Keep them out of the repo.)
+.npm-cache/
+
