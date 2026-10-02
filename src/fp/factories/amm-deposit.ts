@@ -66,6 +66,17 @@
  *      The class API does not enforce the minimal field set.
  *      Source: xrpl.js `validateAMMDeposit` lines 108–112 — throws
  *      `'AMMDeposit: must set at least LPTokenOut or Amount'`.
+ *
+ *   9. `Flags` must contain exactly one AMM-deposit mode flag.
+ *      The class API performs no flag validation at all: `grep -n "Flags"
+ *      xrpl.js src/models/transactions/AMMDeposit.ts` returns only the
+ *      enum and the interface, never a check inside
+ *      `validateAMMDeposit` (lines 85–133). This factory enforces the
+ *      rule the same way `ammWithdraw` does.
+ *      Source: xrpl.org `ammdeposit.md` line 129 — "You must specify
+ *      **exactly one** of these flags, plus any global flags."
+ *      That sentence is byte-identical to `ammwithdraw.md` line 107; the
+ *      two rules are the same and only the flag list differs.
  */
 import type { Amount, IssuedCurrencyAmount } from '../../types/amounts.js';
 import type { AMMDepositFlagsInterface } from '../../types/flags.js';
@@ -77,6 +88,39 @@ import {
 } from '../../validation/helpers.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
+
+// ─── Spec constants ──────────────────────────────────────────────────
+
+// xrpl.js `AMMDepositFlags` enum — these six mode flags identify the
+// mutually-exclusive AMM-deposit modes.
+//   tfLPToken         = 0x00010000
+//   tfSingleAsset     = 0x00080000
+//   tfTwoAsset        = 0x00100000
+//   tfOneAssetLPToken = 0x00200000
+//   tfLimitLPToken    = 0x00400000
+//   tfTwoAssetIfEmpty = 0x00800000
+//
+// Note the sparse bit positions: 0x00020000 and 0x00040000 are
+// AMM-*withdraw* modes (tfWithdrawAll, tfOneAssetWithdrawAll), not deposit
+// modes, so they are absent above. The mask is therefore required — a
+// popcount of the raw `Flags` would miscount a withdraw bit as a second
+// deposit mode.
+//
+// They are non-overlapping single bits, so an "exactly one" check
+// reduces to: popcount(flags & MASK) === 1.
+const AMM_DEPOSIT_FLAG_BITS = [
+  0x00010000, // tfLPToken
+  0x00080000, // tfSingleAsset
+  0x00100000, // tfTwoAsset
+  0x00200000, // tfOneAssetLPToken
+  0x00400000, // tfLimitLPToken
+  0x00800000, // tfTwoAssetIfEmpty
+] as const;
+
+const AMM_DEPOSIT_FLAGS_MASK = AMM_DEPOSIT_FLAG_BITS.reduce<number>(
+  (acc, bit) => acc | bit,
+  0,
+);
 
 // ─── Public types ────────────────────────────────────────────────────
 
@@ -106,6 +150,42 @@ export interface AmmDeposit extends Readonly<AmmDepositProps> {
   validate(): void;
   toJSON(): Record<string, unknown>;
   with(overrides: Partial<AmmDepositProps>): AmmDeposit;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Bit-count of a 32-bit integer (popcount). Used to verify that
+ * exactly one of the six AMM-deposit mode flag bits is set.
+ */
+function popcount32(n: number): number {
+  // Brian Kernighan's algorithm.
+  let v = n >>> 0;
+  let count = 0;
+  while (v !== 0) {
+    v &= v - 1;
+    count++;
+  }
+  return count;
+}
+
+/**
+ * Extract the numeric bitmask from `Flags` regardless of whether the
+ * caller passed a numeric value or a boolean `AMMDepositFlagsInterface`.
+ */
+function flagsToNumber(
+  flags: number | AMMDepositFlagsInterface | undefined,
+): number {
+  if (flags === undefined) return 0;
+  if (typeof flags === 'number') return flags;
+  let n = 0;
+  if (flags.tfLPToken) n |= 0x00010000;
+  if (flags.tfSingleAsset) n |= 0x00080000;
+  if (flags.tfTwoAsset) n |= 0x00100000;
+  if (flags.tfOneAssetLPToken) n |= 0x00200000;
+  if (flags.tfLimitLPToken) n |= 0x00400000;
+  if (flags.tfTwoAssetIfEmpty) n |= 0x00800000;
+  return n;
 }
 
 // ─── Factory ─────────────────────────────────────────────────────────
@@ -165,6 +245,29 @@ export function ammDeposit(props: AmmDepositProps): AmmDeposit {
   }
   if (props.EPrice !== undefined && !isAmount(props.EPrice)) {
     throw new ValidationError('AMMDeposit: EPrice must be an Amount');
+  }
+
+  // ── Flags ── exactly one AMM-deposit mode flag bit must be set
+  //    (xrpl.org `ammdeposit.md` line 129: "You must specify **exactly
+  //    one** of these flags, plus any global flags"). We always validate —
+  //    an absent `Flags`, an explicit `undefined`, and `Flags: 0` all
+  //    represent "no mode flag set" and must throw. Global flags (e.g.
+  //    tfFullyCanonicalSig) sit outside AMM_DEPOSIT_FLAGS_MASK and are
+  //    correctly ignored by this check.
+  //
+  //    Placed last so that field-level errors still surface first, which
+  //    keeps the more specific message for the more specific mistake.
+  const numericFlags = flagsToNumber(props.Flags);
+  const ammFlagBits = numericFlags & AMM_DEPOSIT_FLAGS_MASK;
+  if (ammFlagBits === 0) {
+    throw new ValidationError(
+      'AMMDeposit: Flags must specify exactly one AMM-deposit mode flag (tfLPToken, tfSingleAsset, tfTwoAsset, tfOneAssetLPToken, tfLimitLPToken, or tfTwoAssetIfEmpty)',
+    );
+  }
+  if (popcount32(ammFlagBits) !== 1) {
+    throw new ValidationError(
+      'AMMDeposit: Flags must specify exactly one AMM-deposit mode flag (got multiple)',
+    );
   }
 
   return buildFrozenTx<AmmDepositProps, AmmDeposit>(
