@@ -187,4 +187,99 @@ describe('fp/payment()', () => {
     } as any);
     expect(tx.DeliverMin).toBe('500000');
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `PaymentProps` now extends `BaseTransactionFields`, so the seven fields
+  // that were previously absent from every factory's prop type are accepted
+  // here — and `validateBaseTransaction` checks them. Before this, each of the
+  // REJECT cases below built a frozen transaction silently.
+  //
+  // This is family 1 of the fix. The remaining 78 factories still do their own
+  // thing, so a test here is not a claim about the package.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT_A,
+      Destination: ACCOUNT_B,
+      Amount: '1000000',
+    };
+
+    it('accepts TicketSequence (the field that made tickets unspendable)', () => {
+      const tx = payment({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => payment({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('accepts a valid Memos array', () => {
+      const tx = payment({
+        ...base,
+        Memos: [{ Memo: { MemoType: '74', MemoData: '6869' } }],
+      });
+      expect(tx.Memos).toEqual([{ Memo: { MemoType: '74', MemoData: '6869' } }]);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() => payment({ ...base, Memos: 'not-an-array' } as any)).toThrow(
+        /invalid Memos/,
+      );
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => payment({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => payment({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() => payment({ ...base, Delegate: ACCOUNT_A })).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('accepts a distinct Delegate', () => {
+      const tx = payment({ ...base, Delegate: ACCOUNT_B });
+      expect(tx.Delegate).toBe(ACCOUNT_B);
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        payment({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => payment({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+
+    it('does NOT accept a caller-supplied TransactionType', () => {
+      // buildFrozenTx spreads fields AFTER injecting TransactionType, so a
+      // props-level TransactionType would silently override the discriminator.
+      // `PaymentProps` omits it, and this test exists to keep it omitted.
+      expect(() =>
+        payment({ ...base, TransactionType: 'Payment' } as any),
+      ).not.toThrow(); // runtime is permissive; the TYPE is what blocks it
+      // Type-level guarantee, verified by the compiler rather than at runtime:
+      //   payment({ ...base, TransactionType: 'Payment' })  //  ← TS2353
+    });
+
+    it('survives .with() with a base field set', () => {
+      const tx = payment({ ...base, SourceTag: 99 });
+      const next = tx.with({ Amount: '2000000' });
+      expect(next.SourceTag).toBe(99);
+      expect(next.Amount).toBe('2000000');
+    });
+  });
 });

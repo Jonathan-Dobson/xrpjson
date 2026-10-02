@@ -226,4 +226,49 @@ describe('fp/ticketCreate()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // TicketCreate is the family where the base-field fix matters most: this
+  // factory could always MINT tickets, but before `TicketCreateProps` extended
+  // `BaseTransactionFields` no factory could express SPENDING one. See
+  // ADM-11 in 173-xrpjson-testing, which hand-merged the field after
+  // construction specifically because the factory would not accept it.
+  describe('BaseTransactionFields', () => {
+    const base = { Account: ACCOUNT_A, TicketCount: 1 };
+
+    it('accepts TicketSequence, so a ticket can be spent via the factory', () => {
+      const tx = ticketCreate({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => ticketCreate({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('accepts a non-numeric Delegate', () => {
+      const tx = ticketCreate({ ...base, Delegate: 'rN7n7otQDd6FczFgLdSqtcsAUxDkw6fz' });
+      expect(tx.Delegate).toBe('rN7n7otQDd6FczFgLdSqtcsAUxDkw6fz');
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() => ticketCreate({ ...base, Delegate: ACCOUNT_A })).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => ticketCreate({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+
+    it('still enforces TicketCount range ahead of the base check', () => {
+      // Placement matters: the specific message must win over the generic one.
+      expect(() => ticketCreate({ ...base, TicketCount: 0 })).toThrow(
+        /TicketCount must be an integer from 1 to 250/,
+      );
+    });
+  });
 });

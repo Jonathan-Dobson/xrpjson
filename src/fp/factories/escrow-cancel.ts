@@ -63,7 +63,9 @@
  * `escrowcancel.md` (Description section) they belong to rippled's
  * apply-time checks.
  */
+import type { BaseTransactionFields } from '../../types/base.js';
 import { isAccount, isNumber } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -75,7 +77,10 @@ const UINT32_MAX = 0xffffffff;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface EscrowCancelProps {
+export interface EscrowCancelProps extends Omit<
+  BaseTransactionFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender. Any account may cancel. */
   Account: string;
   /**
@@ -90,10 +95,6 @@ export interface EscrowCancelProps {
   OfferSequence: number;
   /** Bit-flags for this transaction. The spec defines none — must be 0. */
   Flags?: number | undefined;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface EscrowCancel extends Readonly<EscrowCancelProps> {
@@ -153,6 +154,14 @@ export function escrowCancel(props: EscrowCancelProps): EscrowCancel {
       'EscrowCancel: OfferSequence must not equal the transaction Sequence (temBAD_SEQUENCE)',
     );
   }
+
+  // ─── Base transaction fields ───
+  // Validates the fields this factory inherits from BaseTransactionFields
+  // but does not otherwise check. Placed AFTER the EscrowCancel-specific
+  // checks so a more specific mistake gets a more specific message.
+  // `TransactionType` is supplied because the validator checks a built
+  // transaction, not a props bag — the factory injects it below.
+  validateBaseTransaction({ TransactionType: 'EscrowCancel', ...props });
 
   return buildFrozenTx<EscrowCancelProps, EscrowCancel>(
     'EscrowCancel',

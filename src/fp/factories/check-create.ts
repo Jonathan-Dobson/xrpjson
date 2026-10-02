@@ -53,8 +53,10 @@
  *      String | UInt256`. xrpl.js `typeof tx.InvoiceID !== 'string'`
  *      accepts any string; the class uses `isString`.
  */
+import type { BaseTransactionFields } from '../../types/base.js';
 import type { Amount, MPTAmount } from '../../types/amounts.js';
 import { isAccount, isAmount, isHex, isNumber, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -68,7 +70,10 @@ const INVOICE_ID_LENGTH = 64;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface CheckCreateProps {
+export interface CheckCreateProps extends Omit<
+  BaseTransactionFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (the Check writer). */
   Account: string;
   /** The account that may cash the Check. */
@@ -83,8 +88,6 @@ export interface CheckCreateProps {
   InvoiceID?: string | undefined;
   /** Bit-flags for this transaction. CheckCreate has no defined flags. */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface CheckCreate extends Readonly<CheckCreateProps> {
@@ -191,6 +194,14 @@ export function checkCreate(props: CheckCreateProps): CheckCreate {
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Validates the fields this factory inherits from BaseTransactionFields
+  // but does not otherwise check. Placed AFTER the CheckCreate-specific
+  // checks so a more specific mistake gets a more specific message.
+  // `TransactionType` is supplied because the validator checks a built
+  // transaction, not a props bag — the factory injects it below.
+  validateBaseTransaction({ TransactionType: 'CheckCreate', ...props });
 
   return buildFrozenTx<CheckCreateProps, CheckCreate>(
     'CheckCreate',

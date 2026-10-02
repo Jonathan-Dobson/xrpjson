@@ -75,6 +75,7 @@
  *    "`Credentials` cannot contain duplicate elements." The class
  *    does not model the field.
  */
+import type { BaseTransactionFields } from '../../types/base.js';
 import {
   isAccount,
   isArray,
@@ -82,6 +83,7 @@ import {
   isNumber,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -97,7 +99,10 @@ const CREDENTIAL_ID_LENGTH = 64;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface EscrowFinishProps {
+export interface EscrowFinishProps extends Omit<
+  BaseTransactionFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (the finisher). */
   Account: string;
   /** Address of the source account that funded the escrow. */
@@ -125,8 +130,6 @@ export interface EscrowFinishProps {
   CredentialIDs?: string[] | undefined;
   /** Bit-flags for this transaction. EscrowFinish has no defined flags. */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface EscrowFinish extends Readonly<EscrowFinishProps> {
@@ -229,6 +232,14 @@ export function escrowFinish(props: EscrowFinishProps): EscrowFinish {
       seen.add(cid);
     }
   }
+
+  // ─── Base transaction fields ───
+  // Validates the fields this factory inherits from BaseTransactionFields
+  // but does not otherwise check. Placed AFTER the EscrowFinish-specific
+  // checks so a more specific mistake gets a more specific message.
+  // `TransactionType` is supplied because the validator checks a built
+  // transaction, not a props bag — the factory injects it below.
+  validateBaseTransaction({ TransactionType: 'EscrowFinish', ...props });
 
   return buildFrozenTx<EscrowFinishProps, EscrowFinish>(
     'EscrowFinish',

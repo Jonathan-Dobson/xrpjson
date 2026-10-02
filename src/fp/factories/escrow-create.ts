@@ -64,6 +64,7 @@
  *    NOT `>= RIPPLE_EPOCH_OFFSET` (which would incorrectly reject every
  *    valid pre-2030 timestamp).
  */
+import type { BaseTransactionFields } from '../../types/base.js';
 import type { Amount } from '../../types/amounts.js';
 import {
   isAccount,
@@ -72,12 +73,16 @@ import {
   isNumber,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface EscrowCreateProps {
+export interface EscrowCreateProps extends Omit<
+  BaseTransactionFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender. */
   Account: string;
   /** Amount of XRP (drops) or fungible token to set aside. */
@@ -105,8 +110,6 @@ export interface EscrowCreateProps {
   DestinationTag?: number | undefined;
   /** Bit-flags for this transaction. EscrowCreate has no defined flags. */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface EscrowCreate extends Readonly<EscrowCreateProps> {
@@ -269,6 +272,14 @@ export function escrowCreate(props: EscrowCreateProps): EscrowCreate {
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Validates the fields this factory inherits from BaseTransactionFields
+  // but does not otherwise check. Placed AFTER the EscrowCreate-specific
+  // checks so a more specific mistake gets a more specific message.
+  // `TransactionType` is supplied because the validator checks a built
+  // transaction, not a props bag — the factory injects it below.
+  validateBaseTransaction({ TransactionType: 'EscrowCreate', ...props });
 
   return buildFrozenTx<EscrowCreateProps, EscrowCreate>(
     'EscrowCreate',

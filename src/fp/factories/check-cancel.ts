@@ -67,7 +67,9 @@
  *   This is a permissive addition, not a tightening — callers who
  *   pass a non-zero Flags get the value stored verbatim.
  */
+import type { BaseTransactionFields } from '../../types/base.js';
 import { isAccount, isHex, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -86,7 +88,10 @@ const CHECK_ID_ZERO =
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface CheckCancelProps {
+export interface CheckCancelProps extends Omit<
+  BaseTransactionFields,
+  'TransactionType' | 'Flags'
+> {
   /** The transaction submitter (the Check source, destination, or any
    *  address if the Check has expired). */
   Account: string;
@@ -97,8 +102,6 @@ export interface CheckCancelProps {
    *  flags; only `tfFullyCanonicalSig` (global) is meaningful. Accepted
    *  for parity with the base tx shape. */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface CheckCancel extends Readonly<CheckCancelProps> {
@@ -135,6 +138,14 @@ export function checkCancel(props: CheckCancelProps): CheckCancel {
       'CheckCancel: CheckID must not be the all-zeros HASH256 value (xrpl.org fixCleanup3_3_0: temMALFORMED)',
     );
   }
+
+  // ─── Base transaction fields ───
+  // Validates the fields this factory inherits from BaseTransactionFields
+  // but does not otherwise check. Placed AFTER the CheckCancel-specific
+  // checks so a more specific mistake gets a more specific message.
+  // `TransactionType` is supplied because the validator checks a built
+  // transaction, not a props bag — the factory injects it below.
+  validateBaseTransaction({ TransactionType: 'CheckCancel', ...props });
 
   return buildFrozenTx<CheckCancelProps, CheckCancel>(
     'CheckCancel',

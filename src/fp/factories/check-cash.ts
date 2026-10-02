@@ -53,8 +53,10 @@
  *   5. **`DeliverMin` must be a valid `Amount` shape AND strictly
  *      positive.** Same sources as items 3 and 4.
  */
+import type { BaseTransactionFields } from '../../types/base.js';
 import type { Amount, MPTAmount } from '../../types/amounts.js';
 import { isAccount, isAmount, isHex, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -71,7 +73,10 @@ const CHECK_ID_ZERO =
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface CheckCashProps {
+export interface CheckCashProps extends Omit<
+  BaseTransactionFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (the Check cashier). */
   Account: string;
   /** The ID of the Check ledger object to cash (UInt256, 64-char hex). */
@@ -88,8 +93,6 @@ export interface CheckCashProps {
   DeliverMin?: Amount | MPTAmount | undefined;
   /** Bit-flags for this transaction. CheckCash has no defined flags. */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface CheckCash extends Readonly<CheckCashProps> {
@@ -186,6 +189,14 @@ export function checkCash(props: CheckCashProps): CheckCash {
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Validates the fields this factory inherits from BaseTransactionFields
+  // but does not otherwise check. Placed AFTER the CheckCash-specific
+  // checks so a more specific mistake gets a more specific message.
+  // `TransactionType` is supplied because the validator checks a built
+  // transaction, not a props bag — the factory injects it below.
+  validateBaseTransaction({ TransactionType: 'CheckCash', ...props });
 
   return buildFrozenTx<CheckCashProps, CheckCash>(
     'CheckCash',

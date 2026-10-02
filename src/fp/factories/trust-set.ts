@@ -74,9 +74,11 @@
  *      `typeof === 'number'`; the class inherits that gap and accepts
  *      negatives, non-integers, and out-of-range values.
  */
+import type { BaseTransactionFields } from '../../types/base.js';
 import type { IssuedCurrencyAmount } from '../../types/amounts.js';
 import type { TrustSetFlagsInterface } from '../../types/flags.js';
 import { isAccount, isNumber } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -92,7 +94,10 @@ const CURRENCY_CODE_NONSTD_LENGTH = 40;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface TrustSetProps {
+export interface TrustSetProps extends Omit<
+  BaseTransactionFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (the trustor). */
   Account: string;
   /** The limit and currency for the trust line. */
@@ -103,8 +108,6 @@ export interface TrustSetProps {
   QualityOut?: number | undefined;
   /** Bit-flags for this transaction. */
   Flags?: number | TrustSetFlagsInterface | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface TrustSet extends Readonly<TrustSetProps> {
@@ -219,6 +222,14 @@ export function trustSet(props: TrustSetProps): TrustSet {
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Validates the fields this factory inherits from BaseTransactionFields
+  // but does not otherwise check. Placed AFTER the TrustSet-specific
+  // checks so a more specific mistake gets a more specific message.
+  // `TransactionType` is supplied because the validator checks a built
+  // transaction, not a props bag — the factory injects it below.
+  validateBaseTransaction({ TransactionType: 'TrustSet', ...props });
 
   return buildFrozenTx<TrustSetProps, TrustSet>(
     'TrustSet',

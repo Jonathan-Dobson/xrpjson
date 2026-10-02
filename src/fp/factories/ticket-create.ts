@@ -69,6 +69,8 @@
  *      `tecDIR_FULL`.
  */
 import { isAccount, isNumber } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
+import type { BaseTransactionFields } from '../../types/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -85,17 +87,19 @@ const MAX_TICKETS_PER_TX = 250;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface TicketCreateProps {
-  /** The unique address of the transaction sender. */
-  Account: string;
+// See `payment.ts` for why `TransactionType` is omitted. `Flags` is re-declared
+// rather than inherited only because TicketCreate has no defined flags of its
+// own, and the narrower `number` type is worth stating explicitly here.
+type TicketCreateBaseFields = Omit<
+  BaseTransactionFields,
+  'TransactionType' | 'Flags'
+>;
+
+export interface TicketCreateProps extends TicketCreateBaseFields {
   /** How many Tickets to create. Must be an integer in [1, 250]. */
   TicketCount: number;
   /** Bit-flags for this transaction. TicketCreate has no defined flags. */
   Flags?: number | undefined;
-  /** Fee to pay, in drops of XRP. */
-  Fee?: string | undefined;
-  /** Account sequence number (auto-filled by the client in normal use). */
-  Sequence?: number | undefined;
 }
 
 export interface TicketCreate extends Readonly<TicketCreateProps> {
@@ -132,6 +136,11 @@ export function ticketCreate(props: TicketCreateProps): TicketCreate {
       `TicketCreate: TicketCount must be an integer from 1 to ${MAX_TICKETS_PER_TX}`,
     );
   }
+
+  // ─── Base transaction fields ───
+  // See the equivalent block in `payment.ts` for the placement rationale: after
+  // the TicketCreate-specific checks, as a backstop for the shared fields.
+  validateBaseTransaction({ TransactionType: 'TicketCreate', ...props });
 
   return buildFrozenTx<TicketCreateProps, TicketCreate>(
     'TicketCreate',

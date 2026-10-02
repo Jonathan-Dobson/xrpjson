@@ -4,11 +4,16 @@
  * Companion prototype to payment.ts. Validates at construction, returns
  * a frozen object with bound validate/toJSON/with methods.
  */
+import type { BaseTransactionFields } from '../../types/base.js';
 import { isAccount, isNumber, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
-export interface AccountSetProps {
+export interface AccountSetProps extends Omit<
+  BaseTransactionFields,
+  'TransactionType' | 'Flags'
+> {
   Account: string;
   /** Flag to clear on the account. */
   ClearFlag?: number | undefined;
@@ -28,8 +33,6 @@ export interface AccountSetProps {
   TickSize?: number | undefined;
   /** Bit-flags for this transaction. */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface AccountSet
@@ -77,6 +80,14 @@ export function accountSet(props: AccountSetProps): AccountSet {
       isString,
     );
   }
+
+  // ─── Base transaction fields ───
+  // Validates the fields this factory inherits from BaseTransactionFields
+  // but does not otherwise check. Placed AFTER the AccountSet-specific
+  // checks so a more specific mistake gets a more specific message.
+  // `TransactionType` is supplied because the validator checks a built
+  // transaction, not a props bag — the factory injects it below.
+  validateBaseTransaction({ TransactionType: 'AccountSet', ...props });
 
   return buildFrozenTx<AccountSetProps, AccountSet>(
     'AccountSet',

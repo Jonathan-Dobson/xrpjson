@@ -322,4 +322,67 @@ describe('fp/escrowFinish()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── BaseTransactionFields ───
+  // The props type now extends
+  // `Omit<BaseTransactionFields, 'TransactionType' | 'Flags'>`, so the seven
+  // fields that were absent from every factory's prop type are accepted here,
+  // and `validateBaseTransaction` checks them. Before this, each REJECT case
+  // below built a frozen transaction silently.
+  //
+  // Scope: this asserts the shared base-field contract for this one factory.
+  // It is not a claim about the factories that have not been converted.
+  describe('BaseTransactionFields', () => {
+    const A = make({}).Account;
+
+    it('accepts TicketSequence (the field that made tickets unspendable)', () => {
+      const tx = make({ TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => make({ TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('accepts a valid Memos array', () => {
+      const tx = make({ Memos: [{"Memo":{"MemoType":"74","MemoData":"6869"}}] });
+      expect(tx.Memos).toEqual([{"Memo":{"MemoType":"74","MemoData":"6869"}}]);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() => make({ Memos: 'not-an-array' } as any)).toThrow(
+        /invalid Memos/,
+      );
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => make({ SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => make({ NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() => make({ Delegate: A })).toThrow(/cannot be the same/);
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => make({ Fee: 12 } as any)).toThrow(/Fee must be a string/);
+    });
+
+    it('survives .with() with a base field set', () => {
+      const tx = make({ SourceTag: 99 });
+      const next = tx.with({ SourceTag: 100 } as any);
+      expect(next.SourceTag).toBe(100);
+    });
+  });
+
 });

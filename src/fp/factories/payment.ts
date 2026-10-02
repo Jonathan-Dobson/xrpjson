@@ -25,16 +25,27 @@
  */
 import type { Amount } from '../../types/amounts.js';
 import type { PathStep } from '../../types/common.js';
+import type { BaseTransactionFields } from '../../types/base.js';
 import type { PaymentFlagsInterface } from '../../types/flags.js';
 import { isAccount, isAmount } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface PaymentProps {
-  /** The unique address of the transaction sender. */
-  Account: string;
+// `TransactionType` is omitted because the factory injects it, and because
+// `buildFrozenTx` spreads the field set AFTER setting it — a caller-supplied
+// value would win. Inheriting it would put that hazard in the type.
+// `Flags` is omitted so it can be re-declared with this transaction's own
+// flag interface; `PaymentFlagsInterface extends GlobalFlagsInterface`, so
+// the narrowing is assignable to the base's.
+type PaymentBaseFields = Omit<
+  BaseTransactionFields,
+  'TransactionType' | 'Flags'
+>;
+
+export interface PaymentProps extends PaymentBaseFields {
   /** The amount of currency to deliver. */
   Amount: Amount;
   /** The address to receive the funds. */
@@ -51,10 +62,6 @@ export interface PaymentProps {
   SendMax?: Amount | undefined;
   /** Bit-flags for this transaction. */
   Flags?: number | PaymentFlagsInterface | undefined;
-  // Common base fields — included here for completeness; the class
-  // version also accepts them via the BaseTransactionFields spread.
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface Payment extends Readonly<PaymentProps> {
@@ -94,6 +101,19 @@ export function payment(props: PaymentProps): Payment {
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven fields this factory now accepts through
+  // `BaseTransactionFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  //
+  // Placed AFTER the Payment-specific checks so a more specific message wins
+  // for a more specific mistake, and this acts as the backstop for everything
+  // shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'Payment', ...props });
 
   // ─── Build frozen shape ───
   return buildFrozenTx<PaymentProps, Payment>(
