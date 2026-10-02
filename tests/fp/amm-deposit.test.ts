@@ -18,6 +18,9 @@
  *           xrpl.js lines 104–107.
  *        e. Must set at least LPTokenOut or Amount.
  *           xrpl.js lines 108–112.
+ *        f. Flags must set exactly one AMM-deposit mode flag.
+ *           xrpl.org `ammdeposit.md` line 129. The xrpl.js class API has
+ *           no flag validation at all.
  *   4. Frozen-shape contract (mutation throws, .with() returns new frozen
  *      object, .toJSON() strips methods and undefined fields).
  */
@@ -39,6 +42,11 @@ function make(extras: Record<string, unknown> = {}) {
     Asset: { currency: 'XRP' },
     Asset2: { currency: 'ETH', issuer: ETH_ISSUER },
     Amount: '1000',
+    // A deposit mode flag is mandatory (xrpl.org `ammdeposit.md` line
+    // 129: "exactly one"). Default it here so the tests below exercise
+    // the field they are actually about rather than tripping the flag
+    // check first; pass `Flags` in `extras` to override.
+    Flags: AMMDepositFlags.tfSingleAsset,
     ...extras,
   });
 }
@@ -138,6 +146,7 @@ describe('fp/ammDeposit()', () => {
         Asset: { currency: 'USD', issuer: ETH_ISSUER },
         Asset2: { currency: 'BTC', issuer: ETH_ISSUER },
         Amount: { currency: 'USD', issuer: ETH_ISSUER, value: '100' },
+        Flags: AMMDepositFlags.tfSingleAsset,
       });
       expect(tx.Asset).toEqual({ currency: 'USD', issuer: ETH_ISSUER });
       expect(tx.Asset2).toEqual({ currency: 'BTC', issuer: ETH_ISSUER });
@@ -151,6 +160,7 @@ describe('fp/ammDeposit()', () => {
         Amount: { currency: 'USD', issuer: ETH_ISSUER, value: '100' },
         Amount2: '500', // XRP form is a string
         EPrice: { currency: 'USD', issuer: ETH_ISSUER, value: '25' },
+        Flags: AMMDepositFlags.tfTwoAsset,
       });
       expect(tx.Amount).toEqual({
         currency: 'USD',
@@ -171,6 +181,7 @@ describe('fp/ammDeposit()', () => {
         Asset: { currency: 'XRP' },
         Asset2: { currency: 'ETH', issuer: ETH_ISSUER },
         Amount: { mpt_issuance_id: '00000001', value: '100' },
+        Flags: AMMDepositFlags.tfSingleAsset,
       });
       expect(tx.Amount).toEqual({
         mpt_issuance_id: '00000001',
@@ -178,11 +189,103 @@ describe('fp/ammDeposit()', () => {
       });
     });
 
-    it('passes through optional Fee/Sequence/Flags', () => {
-      const tx = make({ Fee: '12', Sequence: 7, Flags: 0 });
+    it('passes through optional Fee/Sequence', () => {
+      const tx = make({ Fee: '12', Sequence: 7 });
       expect(tx.Fee).toBe('12');
       expect(tx.Sequence).toBe(7);
-      expect(tx.Flags).toBe(0);
+    });
+  });
+
+  // xrpl.org `ammdeposit.md` line 129: "You must specify **exactly one**
+  // of these flags, plus any global flags." The sentence is byte-identical
+  // to `ammwithdraw.md` line 107, and `ammWithdraw` has always enforced it.
+  // These cases are the reason they are not symmetric: before this check
+  // existed, `ammDeposit` silently accepted zero, one, or many mode flags.
+  describe('Flags validation (exactly one deposit mode)', () => {
+    it('throws when Flags is absent', () => {
+      expect(() =>
+        ammDeposit({
+          Account: LP,
+          Asset: { currency: 'XRP' },
+          Asset2: { currency: 'ETH', issuer: ETH_ISSUER },
+          Amount: '1000',
+        }),
+      ).toThrow(/exactly one AMM-deposit mode flag/);
+    });
+
+    it('throws when Flags is explicitly undefined', () => {
+      expect(() => make({ Flags: undefined })).toThrow(
+        /exactly one AMM-deposit mode flag/,
+      );
+    });
+
+    it('throws on Flags: 0 (no mode flag set)', () => {
+      expect(() => make({ Flags: 0 })).toThrow(
+        /exactly one AMM-deposit mode flag/,
+      );
+    });
+
+    it('throws when two mode flags are combined', () => {
+      expect(() =>
+        make({
+          Flags:
+            AMMDepositFlags.tfSingleAsset | AMMDepositFlags.tfTwoAsset,
+        }),
+      ).toThrow(/got multiple/);
+    });
+
+    it('accepts a single mode flag combined with a global flag', () => {
+      // tfFullyCanonicalSig (0x00000002) is a global flag, outside the
+      // deposit-mode mask, so it must not count toward the exactly-one rule.
+      const tx = make({
+        Flags: AMMDepositFlags.tfSingleAsset | 0x00000002,
+      });
+      expect(tx.Flags).toBe(AMMDepositFlags.tfSingleAsset | 0x00000002);
+    });
+
+    it('ignores a withdraw-only bit when counting deposit modes', () => {
+      // 0x00020000 is tfWithdrawAll, an AMMWithdraw mode. It is not a
+      // deposit mode, so a lone tfSingleAsset + tfWithdrawAll is still
+      // exactly one *deposit* mode and must be accepted.
+      const tx = make({
+        Flags: AMMDepositFlags.tfSingleAsset | 0x00020000,
+      });
+      expect(tx.Flags).toBe(AMMDepositFlags.tfSingleAsset | 0x00020000);
+    });
+
+    it('accepts a boolean AMMDepositFlagsInterface with one mode', () => {
+      const tx = make({
+        Flags: { tfSingleAsset: true } as const,
+      });
+      expect(tx.Flags).toEqual({ tfSingleAsset: true });
+    });
+
+    it('throws on a boolean interface with two modes', () => {
+      expect(() =>
+        make({
+          Flags: { tfSingleAsset: true, tfTwoAsset: true } as const,
+        }),
+      ).toThrow(/got multiple/);
+    });
+
+    it('throws on a boolean interface with no modes', () => {
+      expect(() => make({ Flags: {} as const })).toThrow(
+        /exactly one AMM-deposit mode flag/,
+      );
+    });
+
+    it('accepts each of the six mode flags individually', () => {
+      const modes = [
+        AMMDepositFlags.tfLPToken,
+        AMMDepositFlags.tfSingleAsset,
+        AMMDepositFlags.tfTwoAsset,
+        AMMDepositFlags.tfOneAssetLPToken,
+        AMMDepositFlags.tfLimitLPToken,
+        AMMDepositFlags.tfTwoAssetIfEmpty,
+      ];
+      for (const flag of modes) {
+        expect(() => make({ Flags: flag })).not.toThrow();
+      }
     });
   });
 
@@ -451,7 +554,11 @@ describe('fp/ammDeposit()', () => {
       expect('Amount2' in json).toBe(false);
       expect('EPrice' in json).toBe(false);
       expect('LPTokenOut' in json).toBe(false);
-      expect('Flags' in json).toBe(false);
+      // `Flags` is the one field that is always present: a deposit must
+      // name exactly one mode (xrpl.org `ammdeposit.md` line 129), so it
+      // can no longer be omitted the way Fee / Sequence can.
+      expect('Flags' in json).toBe(true);
+      expect(json.Flags).toBe(AMMDepositFlags.tfSingleAsset);
       expect('Fee' in json).toBe(false);
       expect('Sequence' in json).toBe(false);
     });
