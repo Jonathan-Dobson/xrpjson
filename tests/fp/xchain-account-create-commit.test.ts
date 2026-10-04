@@ -529,4 +529,155 @@ describe('fp/xchainAccountCreateCommit()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `XchainAccountCreateCommitProps` now extends `BasePropsFields`, so the seven
+  // shared base fields are part of this props type for the first time. Every
+  // factory's props type is being converted to `BasePropsFields` in one
+  // library-wide pass.
+  //
+  // SCOPE NOTE — this factory now CALLS `validateBaseTransaction` as its last
+  // check before `buildFrozenTx`, so the seven base fields are runtime-checked,
+  // not just TYPE-checked. The block previously ended in a tripwire asserting
+  // `.not.toThrow()`; that tripwire has fired and the assertions are now
+  // inverted to the real validator messages from src/validation/base.ts.
+  // Bad values are cast `as any` deliberately — the point is the runtime
+  // check, and a type error would make the tests uncompilable.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      XChainBridge: XCHAIN_BRIDGE_XRP,
+      Amount: AMOUNT,
+      SignatureReward: SIGNATURE_REWARD,
+      Destination: DESTINATION,
+    };
+
+    it('accepts Memos', () => {
+      const memos = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+      const tx = xchainAccountCreateCommit({ ...base, Memos: memos });
+      expect(tx.Memos).toEqual(memos);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = xchainAccountCreateCommit({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = xchainAccountCreateCommit({
+        ...base,
+        LastLedgerSequence: 1234567,
+      });
+      expect(tx.LastLedgerSequence).toBe(1234567);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = xchainAccountCreateCommit({
+        ...base,
+        AccountTxnID: 'A'.repeat(64),
+      });
+      expect(tx.AccountTxnID).toBe('A'.repeat(64));
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = xchainAccountCreateCommit({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+    });
+
+    it('accepts a distinct Delegate', () => {
+      const tx = xchainAccountCreateCommit({
+        ...base,
+        Delegate: ISSUING_CHAIN_DOOR,
+      });
+      expect(tx.Delegate).toBe(ISSUING_CHAIN_DOOR);
+    });
+
+    it('accepts TicketSequence (with Sequence 0)', () => {
+      const tx = xchainAccountCreateCommit({
+        ...base,
+        Sequence: 0,
+        TicketSequence: 42,
+      });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('round-trips all seven through .toJSON()', () => {
+      const tx = xchainAccountCreateCommit({
+        ...base,
+        Memos: [{ Memo: { MemoType: '74', MemoData: '6869' } }],
+        SourceTag: 7,
+        LastLedgerSequence: 900,
+        AccountTxnID: 'B'.repeat(64),
+        NetworkID: 2,
+        Delegate: ISSUING_CHAIN_DOOR,
+        Sequence: 0,
+        TicketSequence: 5,
+      });
+      const json = tx.toJSON();
+      expect(json.Memos).toEqual([{ Memo: { MemoType: '74', MemoData: '6869' } }]);
+      expect(json.SourceTag).toBe(7);
+      expect(json.LastLedgerSequence).toBe(900);
+      expect(json.AccountTxnID).toBe('B'.repeat(64));
+      expect(json.NetworkID).toBe(2);
+      expect(json.Delegate).toBe(ISSUING_CHAIN_DOOR);
+      expect(json.TicketSequence).toBe(5);
+    });
+
+    it('survives .with() with base fields set', () => {
+      const tx = xchainAccountCreateCommit({ ...base, SourceTag: 99 });
+      const next = tx.with({ Account: ACCOUNT });
+      expect(next.SourceTag).toBe(99);
+      expect(next.Amount).toBe(AMOUNT);
+    });
+
+    it('runtime-validates every base field (the gap is closed)', () => {
+      // This test used to assert `.not.toThrow()` for all eight cases: a
+      // deliberate tripwire documenting that the factory did NOT call
+      // `validateBaseTransaction`. The factory now calls it, so the tripwire
+      // has fired and the assertions are inverted to the real behaviour.
+      expect(() =>
+        xchainAccountCreateCommit({ ...base, Memos: 'not-an-array' } as any),
+      ).toThrow(/invalid Memos/);
+      expect(() =>
+        xchainAccountCreateCommit({ ...base, SourceTag: 'NaN' } as any),
+      ).toThrow(/SourceTag must be a number/);
+      expect(() =>
+        xchainAccountCreateCommit({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+      expect(() =>
+        xchainAccountCreateCommit({ ...base, AccountTxnID: 99 } as any),
+      ).toThrow(/AccountTxnID must be a string/);
+      expect(() =>
+        xchainAccountCreateCommit({ ...base, NetworkID: {} } as any),
+      ).toThrow(/NetworkID must be a number/);
+      expect(() =>
+        xchainAccountCreateCommit({ ...base, TicketSequence: 'nope' } as any),
+      ).toThrow(/TicketSequence must be a number/);
+      expect(() =>
+        xchainAccountCreateCommit({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+      expect(() =>
+        xchainAccountCreateCommit({ ...base, Delegate: ACCOUNT }),
+      ).toThrow(/cannot be the same/);
+    });
+
+    it('still checks Destination before the shared base fields', () => {
+      // Ordering check: a factory-specific mistake still produces the
+      // factory's own message, not the base validator's backstop message.
+      expect(() =>
+        xchainAccountCreateCommit({
+          ...base,
+          Destination: 'not-an-address',
+          SourceTag: 'NaN',
+        } as any),
+      ).toThrow(/Destination/);
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() =>
+        xchainAccountCreateCommit({ ...base, Fee: 12 } as any),
+      ).toThrow(/Fee must be a string/);
+    });
+  });
 });

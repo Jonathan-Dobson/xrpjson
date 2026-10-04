@@ -374,4 +374,120 @@ describe('fp/clawback()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `ClawbackProps` now extends `BasePropsFields`, so the seven shared base
+  // fields that were previously absent from this factory's prop type — Memos,
+  // SourceTag, LastLedgerSequence, AccountTxnID, NetworkID, Delegate and
+  // TicketSequence — are part of the type surface and survive onto the frozen
+  // transaction.
+  //
+  // Every value below is chosen to be VALID under `validateBaseTransaction`
+  // (src/validation/base.ts), so this block stays green once that call is
+  // added. The reject-side assertions are deliberately NOT here yet: unlike
+  // payment.ts, this factory does not call `validateBaseTransaction`, so those
+  // validator messages are never reached. Adding the call is a runtime change
+  // and is out of scope for this type-only conversion.
+  describe('BaseTransactionFields', () => {
+    // IOU form: `Amount.issuer` names the HOLDER, so `Holder` is omitted.
+    const base = {
+      Account: ISSUER,
+      Amount: IOU_AMOUNT,
+    };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+
+    it('accepts Memos', () => {
+      const tx = clawback({ ...base, Memos: MEMOS });
+      expect(tx.Memos).toEqual(MEMOS);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = clawback({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+      expect(tx.toJSON().SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = clawback({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.LastLedgerSequence).toBe(1_000_000);
+      expect(tx.toJSON().LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = clawback({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.AccountTxnID).toBe(TXN_ID);
+      expect(tx.toJSON().AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = clawback({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+      expect(tx.toJSON().NetworkID).toBe(1);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = clawback({ ...base, Delegate: HOLDER });
+      expect(tx.Delegate).toBe(HOLDER);
+      expect(tx.toJSON().Delegate).toBe(HOLDER);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = clawback({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    // ── Reject side ── the runtime backstop. Before the
+    // `validateBaseTransaction` call landed, every case below built a frozen
+    // transaction silently. The bad values are cast `as any` on purpose: the
+    // point under test is the runtime check, and a type error would make the
+    // test uncompilable.
+    it('rejects a malformed Memos value', () => {
+      expect(() => clawback({ ...base, Memos: 'not-an-array' } as any)).toThrow(/invalid Memos/);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => clawback({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() => clawback({ ...base, LastLedgerSequence: 'soon' } as any)).toThrow(
+        /LastLedgerSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => clawback({ ...base, AccountTxnID: 99 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => clawback({ ...base, NetworkID: {} } as any)).toThrow(/NetworkID must be a number/);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() => clawback({ ...base, Delegate: 'not-an-address' } as any)).toThrow(
+        /invalid Delegate/,
+      );
+    });
+
+    it('rejects a Delegate equal to Account', () => {
+      expect(() => clawback({ ...base, Delegate: ISSUER })).toThrow(/cannot be the same/);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => clawback({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => clawback({ ...base, Fee: 12 } as any)).toThrow(/Fee must be a string/);
+    });
+  });
 });

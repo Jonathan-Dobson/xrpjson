@@ -146,6 +146,7 @@
  *      is a network convention, not a tx-format rule.
  *      Source: XRPL.org `xchainaddaccountcreateattestation.md:63-64`.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { XChainBridge } from '../../types/common.js';
 import {
   isAccount,
@@ -155,6 +156,7 @@ import {
   isString,
   isXChainBridge,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -208,7 +210,21 @@ function assertValidXChainBridge(bridge: XChainBridge): void {
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface XchainAddAccountCreateAttestationProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface XchainAddAccountCreateAttestationProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (the witness
    *  submitting this attestation). Required, valid XRPL address. */
   Account: string;
@@ -271,10 +287,6 @@ export interface XchainAddAccountCreateAttestationProps {
    *  has no defined flags; only `tfFullyCanonicalSig` (global) is
    *  normally meaningful. Accepted for parity with the base tx shape. */
   Flags?: number | undefined;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface XchainAddAccountCreateAttestation
@@ -371,6 +383,21 @@ export function xchainAddAccountCreateAttestation(
     isXChainBridge,
   );
   assertValidXChainBridge(props.XChainBridge);
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the XChainAddAccountCreateAttestation-specific checks so a
+  // more specific message wins for a more specific mistake, and this acts as
+  // the backstop for everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({
+    TransactionType: 'XChainAddAccountCreateAttestation',
+    ...props,
+  });
 
   return buildFrozenTx<
     XchainAddAccountCreateAttestationProps,

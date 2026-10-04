@@ -105,6 +105,7 @@
  *     previous ledger's close time, the channel closes regardless of
  *     the transaction's contents.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { PaymentChannelClaimFlagsInterface } from '../../types/flags.js';
 import {
   isAccount,
@@ -112,6 +113,7 @@ import {
   isHex,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -132,7 +134,21 @@ const MAX_CREDENTIAL_IDS = 8;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface PaymentChannelClaimProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface PaymentChannelClaimProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender. */
   Account: string;
   /** The unique ID of the payment channel (64-char hex / UInt256). */
@@ -166,8 +182,6 @@ export interface PaymentChannelClaimProps {
   CredentialIDs?: string[] | undefined;
   /** Bit-flags: 0, tfRenew (0x00010000), and/or tfClose (0x00020000). */
   Flags?: number | PaymentChannelClaimFlagsInterface | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface PaymentChannelClaim
@@ -307,6 +321,18 @@ export function paymentChannelClaim(
       seen.add(cid);
     }
   }
+
+  // ─── Base transaction fields ───
+  // Runtime backstop for the seven shared fields: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // `PaymentChannelClaimProps` now extends `BasePropsFields`: the seven shared
+  // fields are type-checked at compile time, and this call is the
+  // runtime backstop. Without it they reached `buildFrozenTx` unchecked. Placed AFTER the PaymentChannelClaim-specific checks so a
+  // more specific message wins for a more specific mistake.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'PaymentChannelClaim', ...props });
 
   return buildFrozenTx<PaymentChannelClaimProps, PaymentChannelClaim>(
     'PaymentChannelClaim',

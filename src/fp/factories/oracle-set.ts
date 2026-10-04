@@ -86,6 +86,7 @@
  * "The transaction fails if: ... `AssetClass` field length exceeds 16
  * bytes".
  */
+import type { BasePropsFields } from '../../types/base.js';
 import {
   isArray,
   isHex,
@@ -93,6 +94,7 @@ import {
   isRecord,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -133,7 +135,21 @@ export interface PriceData {
   };
 }
 
-export interface OracleSetProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface OracleSetProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The XRPL account with create/update/delete privileges on the oracle. */
   Account: string;
   /** Unique identifier of the price oracle for the Account. UINT32. */
@@ -150,8 +166,6 @@ export interface OracleSetProps {
   AssetClass?: string | undefined;
   /** Bit-flags for this transaction. OracleSet has no defined flags. */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface OracleSet extends Readonly<OracleSetProps> {
@@ -344,6 +358,18 @@ export function oracleSet(props: OracleSetProps): OracleSet {
   if (props.AssetClass !== undefined) {
     validateAsciiHexBlob('AssetClass', props.AssetClass, MAX_ASSET_CLASS_BYTES);
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the OracleSet-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'OracleSet', ...props });
 
   return buildFrozenTx<OracleSetProps, OracleSet>(
     'OracleSet',

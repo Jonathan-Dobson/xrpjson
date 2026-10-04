@@ -168,7 +168,9 @@
  *     (lines 47–51); no `Amount` row.
  */
 import type { XChainBridge } from '../../types/common.js';
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isString, isXChainBridge } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -218,7 +220,19 @@ function assertValidXChainBridge(bridge: XChainBridge): void {
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface XchainCreateBridgeProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface XchainCreateBridgeProps
+  extends Omit<BasePropsFields, 'TransactionType' | 'Flags'> {
   /** The unique address of the transaction sender — the door account
    *  on the chain the bridge is being defined on. For a locking-chain
    *  submission, this MUST equal `XChainBridge.LockingChainDoor`
@@ -241,10 +255,6 @@ export interface XchainCreateBridgeProps {
    *  defined flags; only `tfFullyCanonicalSig` (global) is meaningful.
    *  Accepted for parity with the base tx shape. */
   Flags?: number | undefined;
-  /** Fee in drops. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface XchainCreateBridge
@@ -313,6 +323,18 @@ export function xchainCreateBridge(
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the XChainCreateBridge-specific checks so a more specific
+  // message wins for a more specific mistake, and this acts as the backstop
+  // for everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'XChainCreateBridge', ...props });
 
   return buildFrozenTx<XchainCreateBridgeProps, XchainCreateBridge>(
     'XChainCreateBridge',

@@ -83,8 +83,10 @@
  * `LedgerFixType`. It is reserved for future fix types and is not
  * exposed on the factory interface.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isNumber, isString } from '../../validation/helpers.js';
 import { ValidationError } from '../../errors.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Spec constants ──────────────────────────────────────────────────
@@ -98,7 +100,21 @@ const LEDGER_FIX_TYPE_NFTOKEN_PAGE_LINKS = 1;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface LedgerStateFixProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: this transaction defines no flags of its own, so the key is
+//    dropped rather than inherited as a loose `number`.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface LedgerStateFixProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** Sender. Classic or X-address. */
   Account: string;
   /**
@@ -208,6 +224,18 @@ export function ledgerStateFix(
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the LedgerStateFix-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'LedgerStateFix', ...props });
 
   return buildFrozenTx<LedgerStateFixProps, LedgerStateFix>(
     'LedgerStateFix',

@@ -48,7 +48,9 @@
  *   - Source: xrpl-dev-portal basic-data-types.md (`AccountID` is a
  *     classic address or X-address).
  */
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isNumber } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -60,7 +62,21 @@ const UINT32_MAX = 0xffffffff;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface OfferCancelProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface OfferCancelProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (the offer owner). */
   Account: string;
   /**
@@ -70,8 +86,6 @@ export interface OfferCancelProps {
    * error if the offer specified does not exist.
    */
   OfferSequence: number;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface OfferCancel
@@ -116,6 +130,14 @@ export function offerCancel(props: OfferCancelProps): OfferCancel {
       'OfferCancel: OfferSequence must not equal the transaction Sequence (temBAD_SEQUENCE)',
     );
   }
+
+  // ── Base transaction fields ──
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the OfferCancel-specific checks so a more specific message
+  // wins for a more specific mistake.
+  validateBaseTransaction({ TransactionType: 'OfferCancel', ...props });
 
   return buildFrozenTx<OfferCancelProps, OfferCancel>(
     'OfferCancel',

@@ -286,4 +286,109 @@ describe('fp/vaultDeposit()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // The props type extends `BasePropsFields`, so the seven shared base fields
+  // are part of the type surface. The factory now CALLS
+  // `validateBaseTransaction` as its final check, immediately before
+  // `buildFrozenTx` and after every VaultDeposit-specific check, so the reject
+  // cases below reach the shared validator's messages — and a more specific
+  // mistake (e.g. a non-positive Amount) still produces the VaultDeposit
+  // message.
+  describe('BaseTransactionFields', () => {
+    const base = { Account: DEPOSITOR, VaultID: VAULT_ID, Amount: '1000000' };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+
+    it('accepts Memos', () => {
+      const tx = vaultDeposit({ ...base, Memos: MEMOS });
+      expect(tx.Memos).toEqual(MEMOS);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() => vaultDeposit({ ...base, Memos: 'not-an-array' } as any)).toThrow(
+        /invalid Memos/,
+      );
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = vaultDeposit({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => vaultDeposit({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = vaultDeposit({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() => vaultDeposit({ ...base, LastLedgerSequence: 'soon' } as any)).toThrow(
+        /LastLedgerSequence must be a number/,
+      );
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = vaultDeposit({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => vaultDeposit({ ...base, AccountTxnID: 12345 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = vaultDeposit({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => vaultDeposit({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = vaultDeposit({ ...base, Delegate: ISSUER });
+      expect(tx.Delegate).toBe(ISSUER);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() => vaultDeposit({ ...base, Delegate: 'not-an-address' } as any)).toThrow(
+        /invalid Delegate/,
+      );
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() => vaultDeposit({ ...base, Delegate: DEPOSITOR })).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = vaultDeposit({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => vaultDeposit({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => vaultDeposit({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+  });
 });

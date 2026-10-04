@@ -88,8 +88,10 @@
  *      Source: XLS-0080 §3.1 field table; xrpl.js
  *              `permissionedDomainSet.ts` (no `AcceptedAccounts`).
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { AuthorizeCredential } from '../../types/common.js';
 import { isAuthorizeCredential, isHex, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -104,7 +106,21 @@ const MAX_CREDENTIAL_TYPE_BYTES = 64;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface PermissionedDomainSetProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface PermissionedDomainSetProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The account creating or modifying the permissioned domain. */
   Account: string;
   /**
@@ -120,8 +136,6 @@ export interface PermissionedDomainSetProps {
   AcceptedCredentials: AuthorizeCredential[];
   /** Bit-flags for this transaction. (No flags are defined for this tx.) */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface PermissionedDomainSet
@@ -243,6 +257,18 @@ export function permissionedDomainSet(
     }
     seen.add(key);
   });
+
+  // ─── Base transaction fields ───
+  // Runtime backstop for the seven shared fields: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // `PermissionedDomainSetProps` now extends `BasePropsFields`: the seven shared
+  // fields are type-checked at compile time, and this call is the
+  // runtime backstop. Without it they reached `buildFrozenTx` unchecked. Placed AFTER the PermissionedDomainSet-specific checks so a
+  // more specific message wins for a more specific mistake.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'PermissionedDomainSet', ...props });
 
   return buildFrozenTx<PermissionedDomainSetProps, PermissionedDomainSet>(
     'PermissionedDomainSet',

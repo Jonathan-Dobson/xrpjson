@@ -13,6 +13,7 @@
  *
  * @see https://xrpl.org/docs/references/protocol/transactions/types/loanset
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { CounterpartySignature } from '../../types/common.js';
 import type { LoanSetFlagsInterface } from '../../types/flags.js';
 import {
@@ -22,6 +23,7 @@ import {
   isString,
 } from '../../validation/helpers.js';
 import { ValidationError } from '../../errors.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Spec constants ──────────────────────────────────────────────────
@@ -37,7 +39,21 @@ const LOAN_BROKER_ID_LENGTH = 64;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface LoanSetProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface LoanSetProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender. */
   Account: string;
   /** The ID of the `LoanBroker` ledger entry. 64-char hex. */
@@ -76,8 +92,6 @@ export interface LoanSetProps {
   GracePeriod?: number | undefined;
   /** Bit-flags for this transaction. */
   Flags?: number | LoanSetFlagsInterface | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface LoanSet extends Readonly<LoanSetProps> {
@@ -200,6 +214,18 @@ export function loanSet(props: LoanSetProps): LoanSet {
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the LoanSet-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'LoanSet', ...props });
 
   return buildFrozenTx<LoanSetProps, LoanSet>(
     'LoanSet',

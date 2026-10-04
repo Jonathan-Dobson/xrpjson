@@ -379,4 +379,106 @@ describe('fp/nftokenModify()', () => {
       expect(tx.TransactionType).toBe('NFTokenModify');
     });
   });
+
+  // ─── Base transaction fields ─────────────────────────────────────────────
+  // `NftokenModify`Props accepts the seven shared base fields and the factory now
+  // calls `validateBaseTransaction`, so a malformed one is rejected at
+  // construction instead of freezing a transaction that would fail at
+  // submit. Values below are chosen to be VALID under src/validation/base.ts.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      NFTokenID: NFTOKEN_ID,
+    };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+    // A valid classic address distinct from `base.Account`.
+    const DELEGATE = OWNER;
+
+    it('accepts Memos', () => {
+      const tx = nftokenModify({ ...base, Memos: MEMOS });
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = nftokenModify({ ...base, SourceTag: 99 });
+      expect(tx.toJSON().SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = nftokenModify({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.toJSON().LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = nftokenModify({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.toJSON().AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = nftokenModify({ ...base, NetworkID: 1 });
+      expect(tx.toJSON().NetworkID).toBe(1);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = nftokenModify({ ...base, Delegate: DELEGATE });
+      expect(tx.toJSON().Delegate).toBe(DELEGATE);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = nftokenModify({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    // ── Reject side ── the runtime backstop. Before the
+    // `validateBaseTransaction` call landed, every case below built a frozen
+    // transaction silently. The bad values are cast `as any` on purpose: the
+    // point under test is the runtime check, and a type error would make the
+    // test uncompilable.
+    it('rejects a malformed Memos value', () => {
+      expect(() => nftokenModify({ ...base, Memos: 'not-an-array' } as any)).toThrow(/invalid Memos/);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => nftokenModify({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() => nftokenModify({ ...base, LastLedgerSequence: 'soon' } as any)).toThrow(
+        /LastLedgerSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => nftokenModify({ ...base, AccountTxnID: 99 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => nftokenModify({ ...base, NetworkID: {} } as any)).toThrow(/NetworkID must be a number/);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() => nftokenModify({ ...base, Delegate: 'not-an-address' } as any)).toThrow(
+        /invalid Delegate/,
+      );
+    });
+
+    it('rejects a Delegate equal to Account', () => {
+      expect(() => nftokenModify({ ...base, Delegate: ACCOUNT } as any)).toThrow(/cannot be the same/);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => nftokenModify({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => nftokenModify({ ...base, Fee: 12 } as any)).toThrow(/Fee must be a string/);
+    });
+  });
 });

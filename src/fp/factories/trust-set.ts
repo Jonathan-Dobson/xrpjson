@@ -74,7 +74,7 @@
  *      `typeof === 'number'`; the class inherits that gap and accepts
  *      negatives, non-integers, and out-of-range values.
  */
-import type { BaseTransactionFields } from '../../types/base.js';
+import type { BasePropsFields } from '../../types/base.js';
 import type { IssuedCurrencyAmount } from '../../types/amounts.js';
 import type { TrustSetFlagsInterface } from '../../types/flags.js';
 import { isAccount, isNumber } from '../../validation/helpers.js';
@@ -95,7 +95,7 @@ const CURRENCY_CODE_NONSTD_LENGTH = 40;
 // ─── Public types ────────────────────────────────────────────────────
 
 export interface TrustSetProps extends Omit<
-  BaseTransactionFields,
+  BasePropsFields,
   'TransactionType' | 'Flags'
 > {
   /** The unique address of the transaction sender (the trustor). */

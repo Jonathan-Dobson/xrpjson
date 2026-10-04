@@ -117,6 +117,7 @@
  *      XRPL.org `depositpreauth.md:71-78`; XLS-70 §2.1.3 (64-byte
  *      CredentialType cap).
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { AuthorizeCredential } from '../../types/common.js';
 import {
   isAccount,
@@ -124,6 +125,7 @@ import {
   isHex,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -151,7 +153,21 @@ const MAX_CREDENTIAL_TYPE_BYTES = 64;
  * binary codec. Exactly one of them MUST be supplied (per XRPL.org
  * and xrpl.js `validateSingleAuthorizationFieldProvided`).
  */
-export interface DepositPreauthProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface DepositPreauthProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /**
    * The unique address of the transaction sender. The owner of the
    * deposit-authorization slot. Required, must be a valid XRPL
@@ -194,10 +210,6 @@ export interface DepositPreauthProps {
    * `tfFullyCanonicalSig` (0x80000000) is meaningful.
    */
   Flags?: number | undefined;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface DepositPreauth
@@ -401,6 +413,19 @@ export function depositPreauth(props: DepositPreauthProps): DepositPreauth {
       props.UnauthorizeCredentials,
     );
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared base fields this factory does not otherwise
+  // check: Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID,
+  // Delegate, TicketSequence.
+  //
+  // Placed AFTER the DepositPreauth-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'DepositPreauth', ...props });
 
   return buildFrozenTx<DepositPreauthProps, DepositPreauth>(
     'DepositPreauth',

@@ -918,4 +918,114 @@ describe('fp/batch()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `batch` now calls `validateBaseTransaction` as a backstop, placed after
+  // its own Batch-specific checks (payment.ts:123 is the reference). It sees
+  // only the OUTER props: the inner-`RawTransactions` checks are untouched and
+  // still run first, so a malformed inner `TicketSequence` keeps the Batch
+  // message that names the offending index (asserted in the inner-tx tests
+  // above) rather than the base validator's generic one.
+  //
+  // `BatchProps` does not yet extend `BasePropsFields`, so the seven shared
+  // fields are not on this props type yet — which is why the `as any` casts
+  // appear on the ACCEPT cases too, not only the reject ones. That is the type
+  // half of the same bug; without the casts these would not compile.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCT_A,
+      Flags: 0x00010000, // tfAllOrNothing
+      RawTransactions: [
+        paymentInner(ACCT_A, 1),
+        paymentInner(ACCT_A, 2),
+      ],
+    };
+    // A valid classic address distinct from ACCT_A.
+    const DELEGATE = ACCT_B;
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+
+    it('accepts Memos', () => {
+      const tx = batch({ ...base, Memos: MEMOS } as any);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() => batch({ ...base, Memos: 'not-an-array' } as any)).toThrow(
+        /invalid Memos/,
+      );
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = batch({ ...base, SourceTag: 99 } as any);
+      expect(tx.toJSON().SourceTag).toBe(99);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => batch({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = batch({ ...base, LastLedgerSequence: 1_000_000 } as any);
+      expect(tx.toJSON().LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        batch({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = batch({ ...base, AccountTxnID: TXN_ID } as any);
+      expect(tx.toJSON().AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => batch({ ...base, AccountTxnID: 99 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = batch({ ...base, NetworkID: 1 } as any);
+      expect(tx.toJSON().NetworkID).toBe(1);
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => batch({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = batch({ ...base, Delegate: DELEGATE } as any);
+      expect(tx.toJSON().Delegate).toBe(DELEGATE);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() =>
+        batch({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() => batch({ ...base, Delegate: ACCT_A } as any)).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = batch({ ...base, Sequence: 0, TicketSequence: 42 } as any);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => batch({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+  });
 });

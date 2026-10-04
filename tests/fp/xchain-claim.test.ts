@@ -571,4 +571,144 @@ describe('fp/xchainClaim()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `XchainClaimProps` now extends `BasePropsFields`, so the seven shared base
+  // fields are part of this props type for the first time. Every factory's props
+  // type is being converted to `BasePropsFields` in one library-wide pass.
+  //
+  // SCOPE NOTE — read before adding reject cases here. Unlike the factories
+  // that DO call `validateBaseTransaction` (e.g. payment.ts:123), this factory
+  // validates only its own fields, so the seven base fields are currently
+  // TYPE-checked but NOT runtime-checked. The last test in this block
+  // documents that gap on purpose: it is a tripwire that will fail the moment
+  // the call is added, which is the intended follow-up. Asserting
+  // `/invalid Memos/` and friends here today would assert a throw the library
+  // does not raise.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      XChainBridge: XCHAIN_BRIDGE,
+      XChainClaimID: XCHAIN_CLAIM_ID_HEX_STRING,
+      Destination: DESTINATION,
+      Amount: AMOUNT_XRP,
+    };
+
+    it('accepts Memos', () => {
+      const memos = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+      const tx = xchainClaim({ ...base, Memos: memos });
+      expect(tx.Memos).toEqual(memos);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = xchainClaim({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = xchainClaim({ ...base, LastLedgerSequence: 1234567 });
+      expect(tx.LastLedgerSequence).toBe(1234567);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = xchainClaim({ ...base, AccountTxnID: 'A'.repeat(64) });
+      expect(tx.AccountTxnID).toBe('A'.repeat(64));
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = xchainClaim({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+    });
+
+    it('accepts a distinct Delegate', () => {
+      const tx = xchainClaim({ ...base, Delegate: LOCKING_CHAIN_DOOR });
+      expect(tx.Delegate).toBe(LOCKING_CHAIN_DOOR);
+    });
+
+    it('accepts TicketSequence (with Sequence 0)', () => {
+      const tx = xchainClaim({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('round-trips all seven through .toJSON()', () => {
+      const tx = xchainClaim({
+        ...base,
+        Memos: [{ Memo: { MemoType: '74', MemoData: '6869' } }],
+        SourceTag: 7,
+        LastLedgerSequence: 900,
+        AccountTxnID: 'B'.repeat(64),
+        NetworkID: 2,
+        Delegate: LOCKING_CHAIN_DOOR,
+        Sequence: 0,
+        TicketSequence: 5,
+      });
+      const json = tx.toJSON();
+      expect(json.Memos).toEqual([{ Memo: { MemoType: '74', MemoData: '6869' } }]);
+      expect(json.SourceTag).toBe(7);
+      expect(json.LastLedgerSequence).toBe(900);
+      expect(json.AccountTxnID).toBe('B'.repeat(64));
+      expect(json.NetworkID).toBe(2);
+      expect(json.Delegate).toBe(LOCKING_CHAIN_DOOR);
+      expect(json.TicketSequence).toBe(5);
+    });
+
+    it('survives .with() with base fields set', () => {
+      const tx = xchainClaim({ ...base, SourceTag: 99 });
+      const next = tx.with({ Account: ACCOUNT });
+      expect(next.SourceTag).toBe(99);
+      expect(next.XChainClaimID).toBe(XCHAIN_CLAIM_ID_HEX_STRING);
+    });
+
+    // ── Reject side ── the runtime backstop. Before the
+    // `validateBaseTransaction` call landed, every case below built a frozen
+    // transaction silently. The bad values are cast `as any` on purpose: the
+    // point under test is the runtime check, and a type error would make the
+    // test uncompilable.
+    it('rejects a malformed Memos value', () => {
+      expect(() => xchainClaim({ ...base, Memos: 'not-an-array' } as any)).toThrow(/invalid Memos/);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => xchainClaim({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() => xchainClaim({ ...base, LastLedgerSequence: 'soon' } as any)).toThrow(
+        /LastLedgerSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => xchainClaim({ ...base, AccountTxnID: 99 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => xchainClaim({ ...base, NetworkID: {} } as any)).toThrow(/NetworkID must be a number/);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() => xchainClaim({ ...base, Delegate: 'not-an-address' } as any)).toThrow(
+        /invalid Delegate/,
+      );
+    });
+
+    it('rejects a Delegate equal to Account', () => {
+      expect(() => xchainClaim({ ...base, Delegate: ACCOUNT })).toThrow(/cannot be the same/);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => xchainClaim({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => xchainClaim({ ...base, Fee: 12 } as any)).toThrow(/Fee must be a string/);
+    });
+  });
 });

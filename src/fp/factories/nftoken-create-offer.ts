@@ -129,6 +129,7 @@
  *   accepts both, mirroring the OfferCreate / NFTokenMint factories.
  *   - Source: xrpl.js `NFTokenCreateOffer.ts` lines 38–40, 160–164.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { Amount } from '../../types/amounts.js';
 import type { NFTokenCreateOfferFlagsInterface } from '../../types/flags.js';
 import {
@@ -141,6 +142,7 @@ import {
   isRecord,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -164,7 +166,21 @@ const MPT_ISSUANCE_ID_MAX = 48;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface NftokenCreateOfferProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface NftokenCreateOfferProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (the offer creator). */
   Account: string;
   /** The NFTokenID being offered on (Hash256, 64-char hex). */
@@ -179,8 +195,6 @@ export interface NftokenCreateOfferProps {
   Destination?: string | undefined;
   /** Bit-flags (numeric or boolean-map). tfSellNFToken = 0x1. */
   Flags?: number | NFTokenCreateOfferFlagsInterface | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface NftokenCreateOffer
@@ -435,6 +449,18 @@ export function nftokenCreateOffer(
   //              direction logic). The validation in this block ensures
   //              callers get a clear shape error before any cross-field
   //              rules fire.
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the NFTokenCreateOffer-specific checks so a more specific
+  // message wins for a more specific mistake, and this acts as the backstop
+  // for everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'NFTokenCreateOffer', ...props });
 
   return buildFrozenTx<NftokenCreateOfferProps, NftokenCreateOffer>(
     'NFTokenCreateOffer',

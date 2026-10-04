@@ -25,7 +25,7 @@
  */
 import type { Amount } from '../../types/amounts.js';
 import type { PathStep } from '../../types/common.js';
-import type { BaseTransactionFields } from '../../types/base.js';
+import type { BasePropsFields } from '../../types/base.js';
 import type { PaymentFlagsInterface } from '../../types/flags.js';
 import { isAccount, isAmount } from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
@@ -40,10 +40,17 @@ import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 // `Flags` is omitted so it can be re-declared with this transaction's own
 // flag interface; `PaymentFlagsInterface extends GlobalFlagsInterface`, so
 // the narrowing is assignable to the base's.
-type PaymentBaseFields = Omit<
-  BaseTransactionFields,
-  'TransactionType' | 'Flags'
->;
+//
+// The base is `BasePropsFields`, NOT `BaseTransactionFields` itself. The
+// latter ends with `readonly [key: string]: unknown`; that index signature
+// widens `keyof` to `string | number`, so `Omit<BaseTransactionFields, ...>`
+// collapses to a bare index signature and silently discards all fourteen
+// named members. Extending that would make `Account` optional, accept any
+// misspelled field, and accept any value type — the inheritance would read
+// as correct and enforce nothing. `BasePropsFields` keeps the named members
+// and drops only the index signature. See the type's doc comment in
+// src/types/base.ts.
+type PaymentBaseFields = Omit<BasePropsFields, 'TransactionType' | 'Flags'>;
 
 export interface PaymentProps extends PaymentBaseFields {
   /** The amount of currency to deliver. */

@@ -409,4 +409,116 @@ describe('fp/paymentChannelClaim()', () => {
       expect(decoded.Signature).toBe(SIGNATURE_OK);
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `paymentChannelClaim` now calls `validateBaseTransaction` as a backstop,
+  // placed after its own PaymentChannelClaim-specific checks (payment.ts:123
+  // is the reference). Before that call, every REJECT case below built a
+  // frozen transaction silently.
+  //
+  // `PaymentChannelClaimProps` does not yet extend `BasePropsFields`, so the
+  // seven shared fields are not on this props type yet — which is why the
+  // `as any` casts appear on the ACCEPT cases too, not only the reject ones.
+  // That is the type half of the same bug; without the casts these would not
+  // compile.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT_A,
+      Channel: CHANNEL_ID,
+    };
+    // A valid classic address distinct from ACCOUNT_A.
+    const DELEGATE = ACCOUNT_B;
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+
+    it('accepts Memos', () => {
+      const tx = paymentChannelClaim({ ...base, Memos: MEMOS } as any);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() =>
+        paymentChannelClaim({ ...base, Memos: 'not-an-array' } as any),
+      ).toThrow(/invalid Memos/);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = paymentChannelClaim({ ...base, SourceTag: 99 } as any);
+      expect(tx.toJSON().SourceTag).toBe(99);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() =>
+        paymentChannelClaim({ ...base, SourceTag: 'NaN' } as any),
+      ).toThrow(/SourceTag must be a number/);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = paymentChannelClaim({
+        ...base,
+        LastLedgerSequence: 1_000_000,
+      } as any);
+      expect(tx.toJSON().LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        paymentChannelClaim({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = paymentChannelClaim({ ...base, AccountTxnID: TXN_ID } as any);
+      expect(tx.toJSON().AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() =>
+        paymentChannelClaim({ ...base, AccountTxnID: 99 } as any),
+      ).toThrow(/AccountTxnID must be a string/);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = paymentChannelClaim({ ...base, NetworkID: 1 } as any);
+      expect(tx.toJSON().NetworkID).toBe(1);
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() =>
+        paymentChannelClaim({ ...base, NetworkID: {} } as any),
+      ).toThrow(/NetworkID must be a number/);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = paymentChannelClaim({ ...base, Delegate: DELEGATE } as any);
+      expect(tx.toJSON().Delegate).toBe(DELEGATE);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() =>
+        paymentChannelClaim({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() =>
+        paymentChannelClaim({ ...base, Delegate: ACCOUNT_A } as any),
+      ).toThrow(/cannot be the same/);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = paymentChannelClaim({
+        ...base,
+        Sequence: 0,
+        TicketSequence: 42,
+      } as any);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() =>
+        paymentChannelClaim({ ...base, TicketSequence: 'nope' } as any),
+      ).toThrow(/TicketSequence must be a number/);
+    });
+  });
 });

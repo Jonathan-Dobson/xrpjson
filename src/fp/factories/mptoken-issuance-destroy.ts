@@ -52,7 +52,9 @@
  *              only `isString(Account)`); `src/fp/factories/
  *              mptoken-issuance-create.ts` precedent.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isHex, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -65,7 +67,21 @@ const MP_TOKEN_ISSUANCE_ID_ZERO = '0'.repeat(MP_TOKEN_ISSUANCE_ID_LENGTH);
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface MptokenIssuanceDestroyProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface MptokenIssuanceDestroyProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (must be the MPT issuer). */
   Account: string;
   /**
@@ -75,10 +91,6 @@ export interface MptokenIssuanceDestroyProps {
   MPTokenIssuanceID: string;
   /** Bit-flags for this transaction. The spec defines none — must be 0. */
   Flags?: number | undefined;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface MptokenIssuanceDestroy
@@ -125,6 +137,14 @@ export function mptokenIssuanceDestroy(
       'MPTokenIssuanceDestroy: MPTokenIssuanceID must not be zero',
     );
   }
+
+  // ── Base transaction fields ──
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the MPTokenIssuanceDestroy-specific checks so a more
+  // specific message wins for a more specific mistake.
+  validateBaseTransaction({ TransactionType: 'MPTokenIssuanceDestroy', ...props });
 
   return buildFrozenTx<MptokenIssuanceDestroyProps, MptokenIssuanceDestroy>(
     'MPTokenIssuanceDestroy',

@@ -101,6 +101,44 @@ export interface BaseTransactionFields {
 }
 
 /**
+ * The NAMED members of {@link BaseTransactionFields}, with the trailing
+ * open-ended index signature removed.
+ *
+ * `BaseTransactionFields` ends with `readonly [key: string]: unknown` so that
+ * class-based transactions can carry forward-compatible fields the library
+ * does not model yet. That signature is deliberate there — but it makes the
+ * interface unusable as a base for a factory's props type:
+ *
+ *   - `keyof BaseTransactionFields` widens to `string | number`, because the
+ *     index signature subsumes every named key.
+ *   - `Omit<T, K>` is defined in terms of `keyof T`, so
+ *     `Omit<BaseTransactionFields, 'TransactionType' | 'Flags'>` does not
+ *     subtract two keys from fourteen — it collapses to a bare index
+ *     signature and discards every named member.
+ *
+ * A factory extending that collapsed type silently loses `Account` as a
+ * required field, accepts any misspelled field name, and accepts any value
+ * type for the fields it "inherited". The inheritance looks correct in review
+ * and enforces nothing at compile time.
+ *
+ * This type re-projects the interface through a key remap that drops the
+ * index signature and keeps each named field with its exact declared type,
+ * so a factory can extend it and genuinely inherit the seven shared fields
+ * (Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID, Delegate,
+ * TicketSequence) with real type checking.
+ *
+ * Use this, not a bare `Omit<BaseTransactionFields, ...>`, in factory props
+ * interfaces.
+ */
+export type BasePropsFields = {
+  [K in keyof BaseTransactionFields as string extends K
+    ? never
+    : number extends K
+      ? never
+      : K]: BaseTransactionFields[K];
+};
+
+/**
  * A transaction that has been fully prepared for signing.
  * Fee, Sequence, and LastLedgerSequence are guaranteed present.
  */

@@ -274,4 +274,132 @@ describe('fp/paymentChannelFund()', () => {
       expect(decoded.Expiration).toBe(543171558);
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `PaymentChannelFundProps` extends `BasePropsFields`, so the seven shared
+  // base fields are part of this props type: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate and TicketSequence.
+  //
+  // The factory now CALLS `validateBaseTransaction` as its last check before
+  // `buildFrozenTx`, so both directions below are real runtime behaviour: the
+  // accept cases must survive the validator, and the reject cases assert the
+  // validator's own messages from src/validation/base.ts. Bad values are cast
+  // `as any` deliberately — the point is the runtime check, and a type error
+  // would make the tests uncompilable.
+  describe('BaseTransactionFields', () => {
+    const base = BASE_PROPS;
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+    const DELEGATE = 'rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe';
+
+    it('accepts Memos', () => {
+      const tx = paymentChannelFund({ ...base, Memos: MEMOS });
+      expect(tx.Memos).toEqual(MEMOS);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = paymentChannelFund({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = paymentChannelFund({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = paymentChannelFund({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = paymentChannelFund({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = paymentChannelFund({ ...base, Delegate: DELEGATE });
+      expect(tx.Delegate).toBe(DELEGATE);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = paymentChannelFund({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+    });
+
+    // ─── Reject side ───
+
+    it('rejects a malformed Memos value', () => {
+      expect(() =>
+        paymentChannelFund({ ...base, Memos: 'not-an-array' } as any),
+      ).toThrow(/invalid Memos/);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() =>
+        paymentChannelFund({ ...base, SourceTag: 'NaN' } as any),
+      ).toThrow(/SourceTag must be a number/);
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        paymentChannelFund({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() =>
+        paymentChannelFund({ ...base, AccountTxnID: 12345 } as any),
+      ).toThrow(/AccountTxnID must be a string/);
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => paymentChannelFund({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() =>
+        paymentChannelFund({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+    });
+
+    it('rejects a Delegate equal to Account', () => {
+      expect(() =>
+        paymentChannelFund({ ...base, Delegate: base.Account }),
+      ).toThrow(/cannot be the same/);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() =>
+        paymentChannelFund({ ...base, TicketSequence: 'nope' } as any),
+      ).toThrow(/TicketSequence must be a number/);
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => paymentChannelFund({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+
+    it('still checks Amount before the shared base fields', () => {
+      // Ordering check: a factory-specific mistake still produces the
+      // factory's own message, not the base validator's backstop message.
+      expect(() =>
+        paymentChannelFund({
+          ...base,
+          Amount: '-1',
+          SourceTag: 'NaN',
+        } as any),
+      ).toThrow(/Amount/);
+    });
+
+    it('survives .with() with a base field set', () => {
+      const tx = paymentChannelFund({ ...base, SourceTag: 7 });
+      const next = tx.with({ Amount: '300000' });
+      expect(next.SourceTag).toBe(7);
+    });
+  });
 });

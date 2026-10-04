@@ -713,4 +713,114 @@ describe('fp/sponsorshipSet()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // The props type extends `BasePropsFields`, so the seven shared base fields
+  // are part of the type surface. The factory now CALLS
+  // `validateBaseTransaction` as its final check, immediately before
+  // `buildFrozenTx` and after every SponsorshipSet-specific check, so the
+  // reject cases below reach the shared validator's messages — and a more
+  // specific mistake (e.g. a create-shape with no delta) still produces the
+  // SponsorshipSet message.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: SPONSOR,
+      Sponsee: SPONSEE,
+      RemainingOwnerCountDelta: 1,
+      FeeAmountDelta: '1000000',
+    };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+
+    it('accepts Memos', () => {
+      const tx = sponsorshipSet({ ...base, Memos: MEMOS });
+      expect(tx.Memos).toEqual(MEMOS);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() => sponsorshipSet({ ...base, Memos: 'not-an-array' } as any)).toThrow(
+        /invalid Memos/,
+      );
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = sponsorshipSet({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => sponsorshipSet({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = sponsorshipSet({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() => sponsorshipSet({ ...base, LastLedgerSequence: 'soon' } as any)).toThrow(
+        /LastLedgerSequence must be a number/,
+      );
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = sponsorshipSet({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => sponsorshipSet({ ...base, AccountTxnID: 12345 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = sponsorshipSet({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => sponsorshipSet({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = sponsorshipSet({ ...base, Delegate: SPONSEE });
+      expect(tx.Delegate).toBe(SPONSEE);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() => sponsorshipSet({ ...base, Delegate: 'not-an-address' } as any)).toThrow(
+        /invalid Delegate/,
+      );
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() => sponsorshipSet({ ...base, Delegate: SPONSOR })).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = sponsorshipSet({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => sponsorshipSet({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => sponsorshipSet({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+  });
 });

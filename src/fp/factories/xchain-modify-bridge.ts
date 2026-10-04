@@ -155,8 +155,10 @@
  *     (lines 45–50); no other fields.
  */
 import type { XChainBridge } from '../../types/common.js';
+import type { BasePropsFields } from '../../types/base.js';
 import type { XChainModifyBridgeFlagsInterface } from '../../types/flags.js';
 import { isAccount, isString, isXChainBridge } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -207,7 +209,20 @@ function assertValidXChainBridge(bridge: XChainBridge): void {
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface XchainModifyBridgeProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's. Here that is
+//    `XChainModifyBridgeFlagsInterface`, which adds `tfClearAccountCreateAmount`.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface XchainModifyBridgeProps
+  extends Omit<BasePropsFields, 'TransactionType' | 'Flags'> {
   /** The unique address of the transaction sender — the door account
    *  on the chain the bridge was created on. For a locking-chain
    *  submission, this MUST equal `XChainBridge.LockingChainDoor`
@@ -234,10 +249,6 @@ export interface XchainModifyBridgeProps {
    *  (`0x00010000`); setting it clears the bridge's stored
    *  `MinAccountCreateAmount`. */
   Flags?: number | XChainModifyBridgeFlagsInterface | undefined;
-  /** Fee in drops. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface XchainModifyBridge
@@ -309,6 +320,19 @@ export function xchainModifyBridge(
   //    `nftokenMint` and `vaultCreate`). Note: XLS-38 §2.2.2.1 marks
   //    Flags as required; we keep it optional here for parity with
   //    the rest of the fp codebase — see Spec Ambiguities #3.
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared base fields this factory does not otherwise
+  // check: Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID,
+  // Delegate, TicketSequence.
+  //
+  // Placed AFTER the XChainModifyBridge-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'XChainModifyBridge', ...props });
 
   return buildFrozenTx<XchainModifyBridgeProps, XchainModifyBridge>(
     'XChainModifyBridge',

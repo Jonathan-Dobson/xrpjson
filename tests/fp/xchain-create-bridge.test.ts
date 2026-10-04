@@ -482,4 +482,137 @@ describe('fp/xchainCreateBridge()', () => {
       expect('MinAccountCreateAmount' in json).toBe(false);
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `XchainCreateBridgeProps` now extends `BasePropsFields`, so the seven shared
+  // base fields are part of this props type for the first time. Every factory's
+  // props type is being converted to `BasePropsFields` in one library-wide pass.
+  //
+  // Every accept value below is chosen to be VALID under
+  // `validateBaseTransaction` (src/validation/base.ts). The factory now CALLS
+  // that validator as its final check, immediately before `buildFrozenTx` and
+  // after every XChainCreateBridge-specific check, so the reject cases below
+  // reach the shared validator's messages — and a more specific mistake
+  // (e.g. a bad XChainBridge) still produces the XChainCreateBridge message.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      XChainBridge: XCHAIN_BRIDGE_XRP,
+      SignatureReward: SIGNATURE_REWARD,
+    };
+
+    it('accepts Memos', () => {
+      const memos = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+      const tx = xchainCreateBridge({ ...base, Memos: memos });
+      expect(tx.Memos).toEqual(memos);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = xchainCreateBridge({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = xchainCreateBridge({ ...base, LastLedgerSequence: 1234567 });
+      expect(tx.LastLedgerSequence).toBe(1234567);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = xchainCreateBridge({ ...base, AccountTxnID: 'A'.repeat(64) });
+      expect(tx.AccountTxnID).toBe('A'.repeat(64));
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = xchainCreateBridge({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+    });
+
+    it('accepts a distinct Delegate', () => {
+      const tx = xchainCreateBridge({ ...base, Delegate: ISSUING_CHAIN_DOOR });
+      expect(tx.Delegate).toBe(ISSUING_CHAIN_DOOR);
+    });
+
+    it('accepts TicketSequence (with Sequence 0)', () => {
+      const tx = xchainCreateBridge({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('round-trips all seven through .toJSON()', () => {
+      const tx = xchainCreateBridge({
+        ...base,
+        Memos: [{ Memo: { MemoType: '74', MemoData: '6869' } }],
+        SourceTag: 7,
+        LastLedgerSequence: 900,
+        AccountTxnID: 'B'.repeat(64),
+        NetworkID: 2,
+        Delegate: ISSUING_CHAIN_DOOR,
+        Sequence: 0,
+        TicketSequence: 5,
+      });
+      const json = tx.toJSON();
+      expect(json.Memos).toEqual([{ Memo: { MemoType: '74', MemoData: '6869' } }]);
+      expect(json.SourceTag).toBe(7);
+      expect(json.LastLedgerSequence).toBe(900);
+      expect(json.AccountTxnID).toBe('B'.repeat(64));
+      expect(json.NetworkID).toBe(2);
+      expect(json.Delegate).toBe(ISSUING_CHAIN_DOOR);
+      expect(json.TicketSequence).toBe(5);
+    });
+
+    it('survives .with() with base fields set', () => {
+      const tx = xchainCreateBridge({ ...base, SourceTag: 99 });
+      const next = tx.with({ Account: ACCOUNT });
+      expect(next.SourceTag).toBe(99);
+      expect(next.SignatureReward).toBe(SIGNATURE_REWARD);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() =>
+        xchainCreateBridge({ ...base, Memos: 'not-an-array' } as any),
+      ).toThrow(/invalid Memos/);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() =>
+        xchainCreateBridge({ ...base, SourceTag: 'NaN' } as any),
+      ).toThrow(/SourceTag must be a number/);
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        xchainCreateBridge({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() =>
+        xchainCreateBridge({ ...base, AccountTxnID: 99 } as any),
+      ).toThrow(/AccountTxnID must be a string/);
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() =>
+        xchainCreateBridge({ ...base, NetworkID: {} } as any),
+      ).toThrow(/NetworkID must be a number/);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() =>
+        xchainCreateBridge({ ...base, TicketSequence: 'nope' } as any),
+      ).toThrow(/TicketSequence must be a number/);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() =>
+        xchainCreateBridge({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() =>
+        xchainCreateBridge({ ...base, Delegate: ACCOUNT }),
+      ).toThrow(/cannot be the same/);
+    });
+  });
 });

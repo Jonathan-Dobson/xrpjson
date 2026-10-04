@@ -12,8 +12,10 @@
  *
  * @see https://xrpl.org/docs/references/protocol/transactions/types/mptokenissuancecreate
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { MPTokenIssuanceCreateFlagsInterface } from '../../types/flags.js';
 import { isAccount, isHex, isNumber, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -83,7 +85,21 @@ function flagsToNumber(flags: unknown): number {
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface MptokenIssuanceCreateProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface MptokenIssuanceCreateProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (the MPT issuer). */
   Account: string;
   /** Decimal precision for the MPT (0–15). Determines share conversion scale. */
@@ -116,8 +132,6 @@ export interface MptokenIssuanceCreateProps {
   ImmutableFlags?: number | undefined;
   /** Bit-flags for this transaction. */
   Flags?: number | MPTokenIssuanceCreateFlagsInterface | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface MptokenIssuanceCreate
@@ -261,6 +275,21 @@ export function mptokenIssuanceCreate(
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Runtime backstop for the seven shared fields: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // `MptokenIssuanceCreateProps` now extends `BasePropsFields`: the seven shared
+  // fields are type-checked at compile time, and this call is the
+  // runtime backstop. Without it they reached `buildFrozenTx` unchecked. Placed AFTER the MPTokenIssuanceCreate-specific checks so a
+  // more specific message wins for a more specific mistake.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({
+    TransactionType: 'MPTokenIssuanceCreate',
+    ...props,
+  });
 
   // ─── Build frozen shape ───
   return buildFrozenTx<MptokenIssuanceCreateProps, MptokenIssuanceCreate>(

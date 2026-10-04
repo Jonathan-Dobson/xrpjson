@@ -53,7 +53,7 @@
  *   5. **`DeliverMin` must be a valid `Amount` shape AND strictly
  *      positive.** Same sources as items 3 and 4.
  */
-import type { BaseTransactionFields } from '../../types/base.js';
+import type { BasePropsFields } from '../../types/base.js';
 import type { Amount, MPTAmount } from '../../types/amounts.js';
 import { isAccount, isAmount, isHex, isString } from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
@@ -74,7 +74,7 @@ const CHECK_ID_ZERO =
 // ─── Public types ────────────────────────────────────────────────────
 
 export interface CheckCashProps extends Omit<
-  BaseTransactionFields,
+  BasePropsFields,
   'TransactionType' | 'Flags'
 > {
   /** The unique address of the transaction sender (the Check cashier). */

@@ -78,6 +78,7 @@
  *      That sentence is byte-identical to `ammwithdraw.md` line 107; the
  *      two rules are the same and only the flag list differs.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { Amount, IssuedCurrencyAmount } from '../../types/amounts.js';
 import type { AMMDepositFlagsInterface } from '../../types/flags.js';
 import {
@@ -86,6 +87,7 @@ import {
   isIssuedCurrency,
   isIssuedCurrencyAmount,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -140,7 +142,21 @@ const AMM_DEPOSIT_VALID_FLAGS = UNIVERSAL_FLAGS | AMM_DEPOSIT_FLAGS_MASK;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface AmmDepositProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface AmmDepositProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (the LP). */
   Account: string;
   /** One of the two pool assets (XRP form or IOU form, NOT MPT). */
@@ -157,8 +173,6 @@ export interface AmmDepositProps {
   LPTokenOut?: IssuedCurrencyAmount | undefined;
   /** Bit-flags for this transaction. Numeric or boolean map. */
   Flags?: number | AMMDepositFlagsInterface | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface AmmDeposit extends Readonly<AmmDepositProps> {
@@ -302,6 +316,19 @@ export function ammDeposit(props: AmmDepositProps): AmmDeposit {
       'AMMDeposit: Flags must specify exactly one AMM-deposit mode flag (got multiple)',
     );
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared base fields this factory does not otherwise
+  // check: Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID,
+  // Delegate, TicketSequence.
+  //
+  // Placed AFTER the AMMDeposit-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'AMMDeposit', ...props });
 
   return buildFrozenTx<AmmDepositProps, AmmDeposit>(
     'AMMDeposit',

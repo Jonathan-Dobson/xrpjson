@@ -64,7 +64,7 @@
  *    NOT `>= RIPPLE_EPOCH_OFFSET` (which would incorrectly reject every
  *    valid pre-2030 timestamp).
  */
-import type { BaseTransactionFields } from '../../types/base.js';
+import type { BasePropsFields } from '../../types/base.js';
 import type { Amount } from '../../types/amounts.js';
 import {
   isAccount,
@@ -80,7 +80,7 @@ import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 // ─── Public types ────────────────────────────────────────────────────
 
 export interface EscrowCreateProps extends Omit<
-  BaseTransactionFields,
+  BasePropsFields,
   'TransactionType' | 'Flags'
 > {
   /** The unique address of the transaction sender. */

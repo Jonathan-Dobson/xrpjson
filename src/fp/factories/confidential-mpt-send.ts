@@ -124,6 +124,7 @@
  *   - Source: xrpl.js `ConfidentialMPTSend.ts` lines 109–113
  *     (`isMPTIssuer` guard).
  */
+import type { BasePropsFields } from '../../types/base.js';
 import {
   isAccount,
   isArray,
@@ -132,6 +133,7 @@ import {
   isString,
 } from '../../validation/helpers.js';
 import { ValidationError } from '../../errors.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Spec constants ──────────────────────────────────────────────────
@@ -168,7 +170,21 @@ const MAX_UINT32 = 0xffffffff;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface ConfidentialMptSendProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface ConfidentialMptSendProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The account performing the send. Must be a valid XRPL classic/X-address. */
   Account: string;
   /** UInt192 — MPT issuance identifier (48-char hex). */
@@ -193,10 +209,6 @@ export interface ConfidentialMptSendProps {
   BalanceCommitment: string;
   /** Vector256 — 1..8 credential IDs (conditional, non-empty when supplied). */
   CredentialIDs?: string[] | undefined;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface ConfidentialMptSend
@@ -381,6 +393,18 @@ export function confidentialMptSend(
   // NOTE: Destination must NOT be the issuer of MPTokenIssuanceID
   // (XLS-0096 §9.4.1.3 / xrpl.js `isMPTIssuer` guard). Not enforced
   // here — see `## Divergences` header for why.
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the ConfidentialMPTSend-specific checks so a more specific
+  // message wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'ConfidentialMPTSend', ...props });
 
   return buildFrozenTx<ConfidentialMptSendProps, ConfidentialMptSend>(
     'ConfidentialMPTSend',

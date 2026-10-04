@@ -36,8 +36,10 @@
  *              xrpl-dev-portal `vaultdelete.md` (Error Cases table);
  *              XLS-0065 §3.4.1 (`HASH256` internal type).
  */
+import type { BasePropsFields } from '../../types/base.js';
 import { isHex, isString } from '../../validation/helpers.js';
 import { ValidationError } from '../../errors.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Spec constants ──────────────────────────────────────────────────
@@ -49,7 +51,21 @@ const VAULT_ID_LENGTH = 64;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface VaultDeleteProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: this transaction defines no flags of its own, so the key is
+//    dropped rather than inherited as a loose `number`.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface VaultDeleteProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   Account: string;
   /** The ID of the vault to delete. 64-char hex; must not be all-zero. */
   VaultID: string;
@@ -58,8 +74,6 @@ export interface VaultDeleteProps {
    * If present, the decoded value must be 1–256 bytes.
    */
   MemoData?: string | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface VaultDelete
@@ -123,6 +137,18 @@ export function vaultDelete(props: VaultDeleteProps): VaultDelete {
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the VaultDelete-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'VaultDelete', ...props });
 
   return buildFrozenTx<VaultDeleteProps, VaultDelete>(
     'VaultDelete',

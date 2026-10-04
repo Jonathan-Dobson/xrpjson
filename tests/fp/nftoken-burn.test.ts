@@ -264,4 +264,131 @@ describe('fp/nftokenBurn()', () => {
       expect(tx.TransactionType).toBe('NFTokenBurn');
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `NftokenBurnProps` extends `BasePropsFields`, so the seven shared base
+  // fields are part of this props type: Memos, SourceTag, LastLedgerSequence,
+  // AccountTxnID, NetworkID, Delegate and TicketSequence.
+  //
+  // The factory now CALLS `validateBaseTransaction` as its last check before
+  // `buildFrozenTx`, so both directions below are real runtime behaviour: the
+  // accept cases must survive the validator, and the reject cases assert the
+  // validator's own messages from src/validation/base.ts. Bad values are cast
+  // `as any` deliberately — the point is the runtime check, and a type error
+  // would make the tests uncompilable.
+  describe('BaseTransactionFields', () => {
+    const base = { Account: ACCOUNT, NFTokenID: NFTOKEN_ID };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+
+    it('accepts Memos', () => {
+      const tx = nftokenBurn({ ...base, Memos: MEMOS });
+      expect(tx.Memos).toEqual(MEMOS);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = nftokenBurn({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = nftokenBurn({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = nftokenBurn({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = nftokenBurn({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = nftokenBurn({ ...base, Delegate: OWNER });
+      expect(tx.Delegate).toBe(OWNER);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = nftokenBurn({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+    });
+
+    // ─── Reject side ───
+
+    it('rejects a malformed Memos value', () => {
+      expect(() => nftokenBurn({ ...base, Memos: 'not-an-array' } as any)).toThrow(
+        /invalid Memos/,
+      );
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => nftokenBurn({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        nftokenBurn({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => nftokenBurn({ ...base, AccountTxnID: 12345 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => nftokenBurn({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() =>
+        nftokenBurn({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+    });
+
+    it('rejects a Delegate equal to Account', () => {
+      expect(() => nftokenBurn({ ...base, Delegate: base.Account })).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => nftokenBurn({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => nftokenBurn({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+
+    it('still checks NFTokenID before the shared base fields', () => {
+      // Ordering check: a factory-specific mistake still produces the
+      // factory's own message, not the base validator's backstop message.
+      expect(() =>
+        nftokenBurn({
+          ...base,
+          NFTokenID: NFTOKEN_ID_ZERO,
+          SourceTag: 'NaN',
+        } as any),
+      ).toThrow(/NFTokenID/);
+    });
+
+    it('survives .with() with a base field set', () => {
+      const tx = nftokenBurn({ ...base, SourceTag: 7 });
+      const next = tx.with({ Fee: '20' });
+      expect(next.SourceTag).toBe(7);
+    });
+  });
 });

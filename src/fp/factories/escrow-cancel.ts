@@ -63,7 +63,7 @@
  * `escrowcancel.md` (Description section) they belong to rippled's
  * apply-time checks.
  */
-import type { BaseTransactionFields } from '../../types/base.js';
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isNumber } from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
@@ -77,8 +77,19 @@ const UINT32_MAX = 0xffffffff;
 
 // ─── Public types ────────────────────────────────────────────────────
 
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
 export interface EscrowCancelProps extends Omit<
-  BaseTransactionFields,
+  BasePropsFields,
   'TransactionType' | 'Flags'
 > {
   /** The unique address of the transaction sender. Any account may cancel. */

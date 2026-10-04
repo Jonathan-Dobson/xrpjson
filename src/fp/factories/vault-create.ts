@@ -12,6 +12,7 @@
  *
  * @see https://xrpl.org/docs/references/protocol/transactions/types/vaultcreate
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { Currency } from '../../types/amounts.js';
 import type { VaultCreateFlagsInterface } from '../../types/flags.js';
 import {
@@ -21,6 +22,7 @@ import {
   isNumber,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -39,7 +41,21 @@ const TF_VAULT_PRIVATE = 0x00010000;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface VaultCreateProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface VaultCreateProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   Account: string;
   /** The asset held in the vault: XRP, a trust line token, or an MPT. */
   Asset: Currency;
@@ -63,8 +79,6 @@ export interface VaultCreateProps {
   WithdrawalPolicy?: number | undefined;
   /** Bit-flags for this transaction. */
   Flags?: number | VaultCreateFlagsInterface | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface VaultCreate
@@ -238,6 +252,19 @@ export function vaultCreate(props: VaultCreateProps): VaultCreate {
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared base fields this factory does not otherwise
+  // check: Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID,
+  // Delegate, TicketSequence.
+  //
+  // Placed AFTER the VaultCreate-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'VaultCreate', ...props });
 
   return buildFrozenTx<VaultCreateProps, VaultCreate>(
     'VaultCreate',

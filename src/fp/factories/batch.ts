@@ -78,6 +78,7 @@
  * Where the class enforces a rule, the factory matches its error wording
  * so consumers can rely on either API for the same set of guard checks.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { Signer } from '../../types/common.js';
 import type { BatchFlagsInterface } from '../../types/flags.js';
 import { GlobalFlags } from '../../types/flags.js';
@@ -87,6 +88,7 @@ import {
   isRecord,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -123,7 +125,21 @@ export interface BatchSigner {
   };
 }
 
-export interface BatchProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface BatchProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (outer Batch signer). */
   Account: string;
   /**
@@ -142,9 +158,6 @@ export interface BatchProps {
    * `BatchSigner` entry is required (XLS-56 §2.1.3).
    */
   BatchSigners?: BatchSigner[] | undefined;
-  /** Common base fields — pass-through only. */
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface Batch extends Readonly<BatchProps> {
@@ -474,6 +487,24 @@ export function batch(props: BatchProps): Batch {
       }
     });
   }
+
+  // ─── Base transaction fields ───
+  // Runtime backstop for the seven OUTER-tx shared fields: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // `BatchProps` now extends `BasePropsFields`: the seven shared
+  // fields are type-checked at compile time, and this call is the
+  // runtime backstop. Without it they reached `buildFrozenTx` unchecked. Placed AFTER the Batch-specific checks so a more specific
+  // message wins for a more specific mistake.
+  //
+  // The inner-`RawTransactions` checks above are untouched and still run
+  // first: they reject a malformed inner `TicketSequence` with the Batch
+  // message that names the offending index, which is more specific than the
+  // base validator's generic `TicketSequence must be a number`. This call
+  // only sees the outer props.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'Batch', ...props });
 
   return buildFrozenTx<BatchProps, Batch>(
     'Batch',

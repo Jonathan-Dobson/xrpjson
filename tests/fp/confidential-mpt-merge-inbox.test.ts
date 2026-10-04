@@ -306,4 +306,121 @@ describe('fp/confidentialMptMergeInbox()', () => {
       expect(methodNames.sort()).toEqual(['toJSON', 'validate', 'with']);
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `ConfidentialMptMergeInboxProps` now extends `BasePropsFields`, so the
+  // seven shared base fields that were previously absent from this factory's
+  // prop type — Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID,
+  // Delegate and TicketSequence — are part of the type surface and survive onto
+  // the frozen transaction.
+  //
+  // Every value below is chosen to be VALID under `validateBaseTransaction`
+  // (src/validation/base.ts), so this block stays green once that call is
+  // added. The reject-side assertions are deliberately NOT here yet: unlike
+  // payment.ts, this factory does not call `validateBaseTransaction`, so those
+  // validator messages are never reached. Adding the call is a runtime change
+  // and is out of scope for this type-only conversion.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      MPTokenIssuanceID: MPT_ID,
+    };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+    // A valid classic address distinct from ACCOUNT.
+    const DELEGATE = 'rWYkbWkCeg8dP6rXALnjgZSjjLyih5NXm';
+
+    it('accepts Memos', () => {
+      const tx = confidentialMptMergeInbox({ ...base, Memos: MEMOS });
+      expect(tx.Memos).toEqual(MEMOS);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = confidentialMptMergeInbox({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+      expect(tx.toJSON().SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = confidentialMptMergeInbox({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.LastLedgerSequence).toBe(1_000_000);
+      expect(tx.toJSON().LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = confidentialMptMergeInbox({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.AccountTxnID).toBe(TXN_ID);
+      expect(tx.toJSON().AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = confidentialMptMergeInbox({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+      expect(tx.toJSON().NetworkID).toBe(1);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = confidentialMptMergeInbox({ ...base, Delegate: DELEGATE });
+      expect(tx.Delegate).toBe(DELEGATE);
+      expect(tx.toJSON().Delegate).toBe(DELEGATE);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = confidentialMptMergeInbox({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    // ── Reject side ── the runtime backstop. Before the
+    // `validateBaseTransaction` call landed, every case below built a frozen
+    // transaction silently. The bad values are cast `as any` on purpose: the
+    // point under test is the runtime check, and a type error would make the
+    // test uncompilable.
+    it('rejects a malformed Memos value', () => {
+      expect(() => confidentialMptMergeInbox({ ...base, Memos: 'not-an-array' } as any)).toThrow(/invalid Memos/);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => confidentialMptMergeInbox({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() => confidentialMptMergeInbox({ ...base, LastLedgerSequence: 'soon' } as any)).toThrow(
+        /LastLedgerSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => confidentialMptMergeInbox({ ...base, AccountTxnID: 99 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => confidentialMptMergeInbox({ ...base, NetworkID: {} } as any)).toThrow(/NetworkID must be a number/);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() => confidentialMptMergeInbox({ ...base, Delegate: 'not-an-address' } as any)).toThrow(
+        /invalid Delegate/,
+      );
+    });
+
+    it('rejects a Delegate equal to Account', () => {
+      expect(() => confidentialMptMergeInbox({ ...base, Delegate: ACCOUNT })).toThrow(/cannot be the same/);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => confidentialMptMergeInbox({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => confidentialMptMergeInbox({ ...base, Fee: 12 } as any)).toThrow(/Fee must be a string/);
+    });
+  });
 });

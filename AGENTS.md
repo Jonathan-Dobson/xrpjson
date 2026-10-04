@@ -49,7 +49,7 @@ first change.
 
 That sibling checkout had the same `milvusPort` (19530) and `collectionName`
 (`codebase_chunks`), so indexing there would have overwritten this project's
-index — it pointed straight at the live `146-xrpjs` Milvus stack. **This
+index — it pointed straight at the live `175-xrpjson` Milvus stack. **This
 project owns `codebase_chunks` on :19530.** `128-xrp-tx-builder` has been moved
 to port 19531, collection `codebase_chunks_xrplt`, HTTP :7800. Do not move this
 project back onto the defaults; if you change a port or collection name here,

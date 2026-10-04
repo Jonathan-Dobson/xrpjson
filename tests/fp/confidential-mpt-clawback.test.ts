@@ -573,4 +573,133 @@ describe('fp/confidentialMptClawback()', () => {
       expect(methodNames.sort()).toEqual(['toJSON', 'validate', 'with']);
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `ConfidentialMptClawbackProps` now extends `BasePropsFields`, so the seven
+  // shared base fields that were previously absent from this factory's prop
+  // type — Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID,
+  // Delegate and TicketSequence — are part of the type surface and survive onto
+  // the frozen transaction.
+  //
+  // Every value below is chosen to be VALID under `validateBaseTransaction`
+  // (src/validation/base.ts), so this block stays green once that call is
+  // added. The factory now CALLS that validator as its last check before
+  // `buildFrozenTx`, so the reject-side assertions below assert the
+  // validator's own messages. Bad values are cast `as any` deliberately — the
+  // point is the runtime check, and a type error would make the test
+  // uncompilable.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      Holder: HOLDER,
+      MPTokenIssuanceID: MPT_ID,
+      MPTAmount: '100',
+      ZKProof: ZK_PROOF,
+    };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+
+    it('accepts Memos', () => {
+      const tx = confidentialMptClawback({ ...base, Memos: MEMOS });
+      expect(tx.Memos).toEqual(MEMOS);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = confidentialMptClawback({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+      expect(tx.toJSON().SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = confidentialMptClawback({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.LastLedgerSequence).toBe(1_000_000);
+      expect(tx.toJSON().LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = confidentialMptClawback({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.AccountTxnID).toBe(TXN_ID);
+      expect(tx.toJSON().AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = confidentialMptClawback({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+      expect(tx.toJSON().NetworkID).toBe(1);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = confidentialMptClawback({ ...base, Delegate: HOLDER });
+      expect(tx.Delegate).toBe(HOLDER);
+      expect(tx.toJSON().Delegate).toBe(HOLDER);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = confidentialMptClawback({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    // ─── Reject side ───
+
+    it('rejects a malformed Memos value', () => {
+      expect(() =>
+        confidentialMptClawback({ ...base, Memos: 'not-an-array' } as any),
+      ).toThrow(/invalid Memos/);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() =>
+        confidentialMptClawback({ ...base, SourceTag: 'NaN' } as any),
+      ).toThrow(/SourceTag must be a number/);
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        confidentialMptClawback({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() =>
+        confidentialMptClawback({ ...base, AccountTxnID: 12345 } as any),
+      ).toThrow(/AccountTxnID must be a string/);
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => confidentialMptClawback({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() =>
+        confidentialMptClawback({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+    });
+
+    it('rejects a Delegate equal to Account', () => {
+      // `Account` is rejected earlier by this factory's own
+      // "Holder and Account must be different" rule, which is more specific
+      // and therefore wins — the base validator's "cannot be the same" is only
+      // reachable when the factory-specific rule does not fire first. Assert
+      // the message the caller actually sees.
+      expect(() => confidentialMptClawback({ ...base, Delegate: ACCOUNT })).toThrow(
+        /Holder and Account must be different|cannot be the same/,
+      );
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() =>
+        confidentialMptClawback({ ...base, TicketSequence: 'nope' } as any),
+      ).toThrow(/TicketSequence must be a number/);
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => confidentialMptClawback({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+  });
 });

@@ -430,4 +430,132 @@ describe('fp/ammClawback()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `AmmClawbackProps` now extends `BasePropsFields`, so the seven shared base
+  // fields that were previously absent from this factory's prop type — Memos,
+  // SourceTag, LastLedgerSequence, AccountTxnID, NetworkID, Delegate and
+  // TicketSequence — are part of the type surface and survive onto the frozen
+  // transaction.
+  //
+  // The factory now CALLS `validateBaseTransaction` as its last check before
+  // `buildFrozenTx`, so both directions below are real runtime behaviour: the
+  // accept cases must survive the validator, and the reject cases assert the
+  // validator's own messages from src/validation/base.ts. Bad values are cast
+  // `as any` deliberately — the point is the runtime check, and a type error
+  // would make the test uncompilable.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      Holder: HOLDER,
+      Asset: { currency: 'USD', issuer: ACCOUNT },
+      Asset2: { currency: 'XRP' },
+    };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+
+    it('accepts Memos', () => {
+      const tx = ammClawback({ ...base, Memos: MEMOS });
+      expect(tx.Memos).toEqual(MEMOS);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = ammClawback({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+      expect(tx.toJSON().SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = ammClawback({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.LastLedgerSequence).toBe(1_000_000);
+      expect(tx.toJSON().LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = ammClawback({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.AccountTxnID).toBe(TXN_ID);
+      expect(tx.toJSON().AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = ammClawback({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+      expect(tx.toJSON().NetworkID).toBe(1);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = ammClawback({ ...base, Delegate: HOLDER });
+      expect(tx.Delegate).toBe(HOLDER);
+      expect(tx.toJSON().Delegate).toBe(HOLDER);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = ammClawback({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('survives .with() with a base field set', () => {
+      const tx = ammClawback({ ...base, SourceTag: 7 });
+      const next = tx.with({ Holder: 'rHtptZx1yHf6Yv43s1RWffM3Xx4jL' });
+      expect(next.SourceTag).toBe(7);
+    });
+
+    // ─── Reject side ───
+
+    it('rejects a malformed Memos value', () => {
+      expect(() => ammClawback({ ...base, Memos: 'not-an-array' } as any)).toThrow(
+        /invalid Memos/,
+      );
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => ammClawback({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        ammClawback({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => ammClawback({ ...base, AccountTxnID: 12345 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => ammClawback({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() =>
+        ammClawback({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+    });
+
+    it('rejects a Delegate equal to Account', () => {
+      expect(() => ammClawback({ ...base, Delegate: ACCOUNT })).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() =>
+        ammClawback({ ...base, TicketSequence: 'nope' } as any),
+      ).toThrow(/TicketSequence must be a number/);
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => ammClawback({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+  });
 });

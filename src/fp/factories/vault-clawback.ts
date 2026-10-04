@@ -57,6 +57,7 @@
  *   - Source: xrpl-dev-portal vaultclawback.md "VaultClawback Flags" section.
  */
 import type { ClawbackAmount } from '../../types/amounts.js';
+import type { BasePropsFields } from '../../types/base.js';
 import {
   isAccount,
   isClawbackAmount,
@@ -65,6 +66,7 @@ import {
   isMPTAmount,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -85,7 +87,20 @@ const MPT_ISSUANCE_ID_MAX = 48;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface VaultClawbackProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared below with this transaction's narrower type.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface VaultClawbackProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   Account: string;
   /** The ID of the vault from which assets are withdrawn. 64-char hex (HASH256). */
   VaultID: string;
@@ -98,8 +113,6 @@ export interface VaultClawbackProps {
   Amount?: ClawbackAmount | undefined;
   /** No flags defined for VaultClawback; permitted for base-tx parity. */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface VaultClawback
@@ -194,6 +207,19 @@ export function vaultClawback(props: VaultClawbackProps): VaultClawback {
       }
     }
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  //
+  // Placed AFTER the VaultClawback-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'VaultClawback', ...props });
 
   return buildFrozenTx<VaultClawbackProps, VaultClawback>(
     'VaultClawback',

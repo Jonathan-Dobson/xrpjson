@@ -35,13 +35,28 @@
  *              Confirmed by xrpl-dev-portal `setregularkey.md` Fields table:
  *              "Must not match the master key pair for the address."
  */
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface SetRegularKeyProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared below so each transaction narrows it to its own type.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface SetRegularKeyProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /**
    * The funded account whose regular key is being set/changed/removed.
    * Required, must be a valid XRPL classic or X-address.
@@ -58,10 +73,6 @@ export interface SetRegularKeyProps {
   RegularKey?: string | undefined;
   /** Bit-flags for this transaction. SetRegularKey has no defined flags. */
   Flags?: number | undefined;
-  /** Fee in drops. Base transaction field. */
-  Fee?: string | undefined;
-  /** Account sequence number. Base transaction field. */
-  Sequence?: number | undefined;
 }
 
 export interface SetRegularKey extends Readonly<SetRegularKeyProps> {
@@ -97,6 +108,19 @@ export function setRegularKey(props: SetRegularKeyProps): SetRegularKey {
       );
     }
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared base fields this factory does not otherwise
+  // check: Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID,
+  // Delegate, TicketSequence.
+  //
+  // Placed AFTER the SetRegularKey-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'SetRegularKey', ...props });
 
   return buildFrozenTx<SetRegularKeyProps, SetRegularKey>(
     'SetRegularKey',

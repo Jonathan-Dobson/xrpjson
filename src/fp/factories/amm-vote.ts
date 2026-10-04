@@ -58,12 +58,14 @@
  *    lines 55–60.
  */
 import type { Currency } from '../../types/amounts.js';
+import type { BasePropsFields } from '../../types/base.js';
 import {
   isAccount,
   isCurrency,
   isNumber,
 } from '../../validation/helpers.js';
 import { ValidationError } from '../../errors.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Spec constants ──────────────────────────────────────────────────
@@ -74,7 +76,21 @@ const AMM_MAX_TRADING_FEE = 1000;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface AmmVoteProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface AmmVoteProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (an LP of the AMM). */
   Account: string;
   /** One of the two assets in the AMM's pool (XRP / IOU / MPT). */
@@ -86,10 +102,6 @@ export interface AmmVoteProps {
    * be an integer in [0, 1000] inclusive. UINT16.
    */
   TradingFee: number;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
   /** Bit-flags for this transaction (AMMVote defines no transaction-specific flags). */
   Flags?: number | undefined;
 }
@@ -138,6 +150,18 @@ export function ammVote(props: AmmVoteProps): AmmVote {
       `AMMVote: TradingFee must be between 0 and ${AMM_MAX_TRADING_FEE} inclusive (got ${props.TradingFee})`,
     );
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the AMMVote-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'AMMVote', ...props });
 
   return buildFrozenTx<AmmVoteProps, AmmVote>(
     'AMMVote',

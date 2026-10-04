@@ -49,21 +49,34 @@
  *   - Local helper `isAccount` at `src/validation/helpers.ts`
  *     (lines 55–60 — regex check for classic or X-address format).
  */
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isDomainID } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface PermissionedDomainDeleteProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: this transaction defines NO flags of its own, so unlike the rest
+//    of the family it does not re-declare `Flags` — the key is dropped
+//    entirely rather than narrowed. Omitting it keeps the props type
+//    honest: a `Flags` here would serialize to the wire and be rejected
+//    by the ledger. See the file header ("no flags defined").
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface PermissionedDomainDeleteProps
+  extends Omit<BasePropsFields, 'TransactionType' | 'Flags'> {
   /** The unique address of the transaction sender. Must be the domain owner. */
   Account: string;
   /** The ledger entry ID of the Permissioned Domain to delete. 64-char hex. */
   DomainID: string;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface PermissionedDomainDelete
@@ -99,6 +112,21 @@ export function permissionedDomainDelete(
       'PermissionedDomainDelete: DomainID must be a 64-character hex string',
     );
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the PermissionedDomainDelete-specific checks so a more
+  // specific message wins for a more specific mistake, and this acts as the
+  // backstop for everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({
+    TransactionType: 'PermissionedDomainDelete',
+    ...props,
+  });
 
   return buildFrozenTx<PermissionedDomainDeleteProps, PermissionedDomainDelete>(
     'PermissionedDomainDelete',

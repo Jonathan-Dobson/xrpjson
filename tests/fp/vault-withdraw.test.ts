@@ -491,4 +491,107 @@ describe('fp/vaultWithdraw()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── Base transaction fields ─────────────────────────────────────────────
+  // `VaultWithdraw`Props accepts the seven shared base fields and the factory now
+  // calls `validateBaseTransaction`, so a malformed one is rejected at
+  // construction instead of freezing a transaction that would fail at
+  // submit. Values below are chosen to be VALID under src/validation/base.ts.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      VaultID: VAULT_ID,
+      Amount: '1000000',
+    };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+    // A valid classic address distinct from `base.Account`.
+    const DELEGATE = DESTINATION;
+
+    it('accepts Memos', () => {
+      const tx = vaultWithdraw({ ...base, Memos: MEMOS });
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = vaultWithdraw({ ...base, SourceTag: 99 });
+      expect(tx.toJSON().SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = vaultWithdraw({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.toJSON().LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = vaultWithdraw({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.toJSON().AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = vaultWithdraw({ ...base, NetworkID: 1 });
+      expect(tx.toJSON().NetworkID).toBe(1);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = vaultWithdraw({ ...base, Delegate: DELEGATE });
+      expect(tx.toJSON().Delegate).toBe(DELEGATE);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = vaultWithdraw({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    // ── Reject side ── the runtime backstop. Before the
+    // `validateBaseTransaction` call landed, every case below built a frozen
+    // transaction silently. The bad values are cast `as any` on purpose: the
+    // point under test is the runtime check, and a type error would make the
+    // test uncompilable.
+    it('rejects a malformed Memos value', () => {
+      expect(() => vaultWithdraw({ ...base, Memos: 'not-an-array' } as any)).toThrow(/invalid Memos/);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => vaultWithdraw({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() => vaultWithdraw({ ...base, LastLedgerSequence: 'soon' } as any)).toThrow(
+        /LastLedgerSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => vaultWithdraw({ ...base, AccountTxnID: 99 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => vaultWithdraw({ ...base, NetworkID: {} } as any)).toThrow(/NetworkID must be a number/);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() => vaultWithdraw({ ...base, Delegate: 'not-an-address' } as any)).toThrow(
+        /invalid Delegate/,
+      );
+    });
+
+    it('rejects a Delegate equal to Account', () => {
+      expect(() => vaultWithdraw({ ...base, Delegate: ACCOUNT } as any)).toThrow(/cannot be the same/);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => vaultWithdraw({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => vaultWithdraw({ ...base, Fee: 12 } as any)).toThrow(/Fee must be a string/);
+    });
+  });
 });

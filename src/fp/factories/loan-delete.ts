@@ -55,7 +55,9 @@
  *     `validateLoanDelete`) — checks Account via `isAccount`.
  *   - Local helper `isAccount` at `src/validation/helpers.ts` lines 55–60.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isLedgerEntryId } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -67,15 +69,25 @@ const LOAN_ID_ZERO =
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface LoanDeleteProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface LoanDeleteProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender. */
   Account: string;
   /** The ID of the `Loan` ledger entry to delete. 64-char hex. */
   LoanID: string;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface LoanDelete extends Readonly<LoanDeleteProps> {
@@ -102,6 +114,14 @@ export function loanDelete(props: LoanDeleteProps): LoanDelete {
       'LoanDelete: LoanID must not be the all-zeros HASH256 value',
     );
   }
+
+  // ── Base transaction fields ──
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the LoanDelete-specific checks so a more specific message
+  // wins for a more specific mistake.
+  validateBaseTransaction({ TransactionType: 'LoanDelete', ...props });
 
   return buildFrozenTx<LoanDeleteProps, LoanDelete>(
     'LoanDelete',

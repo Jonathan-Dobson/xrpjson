@@ -42,8 +42,10 @@
  *      accepts any numeric string regardless of sign; the local
  *      `validation/helpers.isAmount` has the same gap.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { Amount, MPTAmount } from '../../types/amounts.js';
 import { isAccount, isAmount, isHex, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -57,17 +59,27 @@ const LOAN_BROKER_ID_ZERO =
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface LoanBrokerCoverDepositProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: this transaction defines no flags of its own, so the key is
+//    dropped rather than inherited as a loose `number`.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface LoanBrokerCoverDepositProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (must be `LoanBroker.Owner`). */
   Account: string;
   /** The ID of the `LoanBroker` ledger entry to deposit First-Loss Capital into. 64-char hex. */
   LoanBrokerID: string;
   /** First-Loss Capital amount to deposit (XRP / trust line / MPT). */
   Amount: Amount | MPTAmount;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface LoanBrokerCoverDeposit
@@ -149,6 +161,21 @@ export function loanBrokerCoverDeposit(
       'LoanBrokerCoverDeposit: Amount must be strictly positive (non-zero, non-negative)',
     );
   }
+
+  // ─── Base transaction fields ───
+  // Runtime backstop for the seven shared fields: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // `LoanBrokerCoverDepositProps` now extends `BasePropsFields`: the seven shared
+  // fields are type-checked at compile time, and this call is the
+  // runtime backstop. Without it they reached `buildFrozenTx` unchecked. Placed AFTER the LoanBrokerCoverDeposit-specific checks so a
+  // more specific message wins for a more specific mistake.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({
+    TransactionType: 'LoanBrokerCoverDeposit',
+    ...props,
+  });
 
   return buildFrozenTx<LoanBrokerCoverDepositProps, LoanBrokerCoverDeposit>(
     'LoanBrokerCoverDeposit',

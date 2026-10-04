@@ -76,6 +76,7 @@
  *   - Source: xrpl.org `nftokenacceptoffer.md` lines 47–51.
  *   - Source: XLS-20 §1.5.6 lines 810–822.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { Amount } from '../../types/amounts.js';
 import {
   isAccount,
@@ -84,6 +85,7 @@ import {
   isMPTAmount,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -94,7 +96,22 @@ const HASH256_LENGTH = 64;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface NftokenAcceptOfferProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: this factory declares no `Flags` of its own; omitting the key is
+//    what leaves that decision to each transaction type (see e.g.
+//    amm-deposit's narrower AMMDepositFlagsInterface).
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface NftokenAcceptOfferProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The transaction submitter (classic or X-address). */
   Account: string;
   /**
@@ -112,8 +129,6 @@ export interface NftokenAcceptOfferProps {
    * Must be strictly positive. Requires both SellOffer and BuyOffer.
    */
   NFTokenBrokerFee?: Amount | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface NftokenAcceptOffer
@@ -237,6 +252,19 @@ export function nftokenAcceptOffer(
     }
     assertValidBrokerFee(props.NFTokenBrokerFee);
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared base fields this factory does not otherwise
+  // check: Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID,
+  // Delegate, TicketSequence.
+  //
+  // Placed AFTER the NFTokenAcceptOffer-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'NFTokenAcceptOffer', ...props });
 
   return buildFrozenTx<NftokenAcceptOfferProps, NftokenAcceptOffer>(
     'NFTokenAcceptOffer',

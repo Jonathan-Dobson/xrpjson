@@ -73,11 +73,13 @@
  *     `~/.mavis/docs.local/xrpl.js/repo/packages/xrpl/src/models/transactions/common.ts`
  *     `validateBaseTransaction`.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import {
   isAccount,
   isArray,
   isLedgerEntryId,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -88,7 +90,21 @@ const MAX_NFTOKEN_OFFERS = 500;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface NftokenCancelOfferProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface NftokenCancelOfferProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   Account: string;
   /**
    * NFTokenOffer object IDs to cancel. Each entry is a 256-bit hash
@@ -96,8 +112,6 @@ export interface NftokenCancelOfferProps {
    * IDs.
    */
   NFTokenOffers: string[];
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface NftokenCancelOffer
@@ -173,6 +187,14 @@ export function nftokenCancelOffer(
     }
     seen.add(id);
   }
+
+  // ── Base transaction fields ──
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the NFTokenCancelOffer-specific checks so a more specific
+  // message wins for a more specific mistake.
+  validateBaseTransaction({ TransactionType: 'NFTokenCancelOffer', ...props });
 
   return buildFrozenTx<NftokenCancelOfferProps, NftokenCancelOffer>(
     'NFTokenCancelOffer',

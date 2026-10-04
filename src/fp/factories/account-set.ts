@@ -4,14 +4,24 @@
  * Companion prototype to payment.ts. Validates at construction, returns
  * a frozen object with bound validate/toJSON/with methods.
  */
-import type { BaseTransactionFields } from '../../types/base.js';
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isNumber, isString } from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared below with this transaction's narrower type.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members. See
+// the doc comment on BasePropsFields in src/types/base.ts.
 export interface AccountSetProps extends Omit<
-  BaseTransactionFields,
+  BasePropsFields,
   'TransactionType' | 'Flags'
 > {
   Account: string;

@@ -564,4 +564,135 @@ describe('fp/signerListSet()', () => {
       expect((decoded as { SignerQuorum: number }).SignerQuorum).toBe(0);
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `SignerListSetProps` now extends `BasePropsFields`, so the seven shared
+  // base fields are part of this props type for the first time. Every factory's
+  // props type is being converted to `BasePropsFields` in one library-wide pass.
+  //
+  // SCOPE NOTE — this factory now CALLS `validateBaseTransaction` as its last
+  // check before `buildFrozenTx`, so the seven base fields are runtime-checked,
+  // not just TYPE-checked. The block previously ended in a tripwire asserting
+  // `.not.toThrow()`; that tripwire has fired and the assertions are now
+  // inverted to the real validator messages from src/validation/base.ts.
+  // Bad values are cast `as any` deliberately — the point is the runtime
+  // check, and a type error would make the tests uncompilable.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      SignerQuorum: 1,
+      SignerEntries: [{ SignerEntry: { Account: SIGNER_A, SignerWeight: 1 } }],
+    };
+
+    it('accepts Memos', () => {
+      const memos = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+      const tx = signerListSet({ ...base, Memos: memos });
+      expect(tx.Memos).toEqual(memos);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = signerListSet({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = signerListSet({ ...base, LastLedgerSequence: 1234567 });
+      expect(tx.LastLedgerSequence).toBe(1234567);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = signerListSet({ ...base, AccountTxnID: 'A'.repeat(64) });
+      expect(tx.AccountTxnID).toBe('A'.repeat(64));
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = signerListSet({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+    });
+
+    it('accepts a distinct Delegate', () => {
+      const tx = signerListSet({ ...base, Delegate: SIGNER_B });
+      expect(tx.Delegate).toBe(SIGNER_B);
+    });
+
+    it('accepts TicketSequence (with Sequence 0)', () => {
+      const tx = signerListSet({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('round-trips all seven through .toJSON()', () => {
+      const tx = signerListSet({
+        ...base,
+        Memos: [{ Memo: { MemoType: '74', MemoData: '6869' } }],
+        SourceTag: 7,
+        LastLedgerSequence: 900,
+        AccountTxnID: 'B'.repeat(64),
+        NetworkID: 2,
+        Delegate: SIGNER_B,
+        Sequence: 0,
+        TicketSequence: 5,
+      });
+      const json = tx.toJSON();
+      expect(json.Memos).toEqual([{ Memo: { MemoType: '74', MemoData: '6869' } }]);
+      expect(json.SourceTag).toBe(7);
+      expect(json.LastLedgerSequence).toBe(900);
+      expect(json.AccountTxnID).toBe('B'.repeat(64));
+      expect(json.NetworkID).toBe(2);
+      expect(json.Delegate).toBe(SIGNER_B);
+      expect(json.TicketSequence).toBe(5);
+    });
+
+    it('survives .with() with base fields set', () => {
+      const tx = signerListSet({ ...base, SourceTag: 99 });
+      const next = tx.with({ Account: ACCOUNT });
+      expect(next.SourceTag).toBe(99);
+      expect(next.SignerQuorum).toBe(1);
+    });
+
+    it('runtime-validates every base field (the gap is closed)', () => {
+      // This test used to assert `.not.toThrow()` for all eight cases: a
+      // deliberate tripwire documenting that the factory did NOT call
+      // `validateBaseTransaction`. The factory now calls it, so the tripwire
+      // has fired and the assertions are inverted to the real behaviour.
+      expect(() =>
+        signerListSet({ ...base, Memos: 'not-an-array' } as any),
+      ).toThrow(/invalid Memos/);
+      expect(() => signerListSet({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+      expect(() =>
+        signerListSet({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+      expect(() => signerListSet({ ...base, AccountTxnID: 99 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+      expect(() => signerListSet({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+      expect(() =>
+        signerListSet({ ...base, TicketSequence: 'nope' } as any),
+      ).toThrow(/TicketSequence must be a number/);
+      expect(() =>
+        signerListSet({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+      expect(() => signerListSet({ ...base, Delegate: ACCOUNT })).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('still checks SignerQuorum before the shared base fields', () => {
+      // Ordering check: a factory-specific mistake still produces the
+      // factory's own message, not the base validator's backstop message.
+      expect(() =>
+        signerListSet({ ...base, SignerQuorum: 99, SourceTag: 'NaN' } as any),
+      ).toThrow(/SignerQuorum/);
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => signerListSet({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+  });
 });

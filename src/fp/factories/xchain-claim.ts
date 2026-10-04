@@ -147,6 +147,7 @@
  */
 import type { Amount } from '../../types/amounts.js';
 import type { XChainBridge } from '../../types/common.js';
+import type { BasePropsFields } from '../../types/base.js';
 import {
   isAccount,
   isAmount,
@@ -156,6 +157,7 @@ import {
   isString,
   isXChainBridge,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -294,7 +296,19 @@ function validateXChainClaimIDValue(
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface XchainClaimProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface XchainClaimProps
+  extends Omit<BasePropsFields, 'TransactionType' | 'Flags'> {
   /** The unique address of the transaction sender (the account that
    *  owns the `XChainOwnedClaimID` on the destination chain). */
   Account: string;
@@ -325,10 +339,6 @@ export interface XchainClaimProps {
    *  flags; only `tfFullyCanonicalSig` (global) is normally meaningful.
    *  Accepted for parity with the base tx shape. */
   Flags?: number | undefined;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface XchainClaim extends Readonly<XchainClaimProps> {
@@ -388,6 +398,19 @@ export function xchainClaim(props: XchainClaimProps): XchainClaim {
 
   // ── Amount ── required, any Currency Amount form, strictly positive.
   validatePositiveAmount(props.Amount, 'Amount');
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared base fields this factory does not otherwise
+  // check: Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID,
+  // Delegate, TicketSequence.
+  //
+  // Placed AFTER the XChainClaim-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'XChainClaim', ...props });
 
   return buildFrozenTx<XchainClaimProps, XchainClaim>(
     'XChainClaim',

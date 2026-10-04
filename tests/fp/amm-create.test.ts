@@ -464,4 +464,112 @@ describe('fp/ammCreate()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `AmmCreateProps` now extends `BasePropsFields`, so the seven shared base
+  // fields that were previously absent from this factory's prop type — Memos,
+  // SourceTag, LastLedgerSequence, AccountTxnID, NetworkID, Delegate and
+  // TicketSequence — are part of the type surface and survive onto the frozen
+  // transaction.
+  //
+  // Every accept value below is chosen to be VALID under
+  // `validateBaseTransaction` (src/validation/base.ts). The factory now CALLS
+  // that validator as its final check, immediately before `buildFrozenTx` and
+  // after every AMMCreate-specific check, so the reject cases below reach the
+  // shared validator's messages — and a more specific mistake still produces
+  // the AMMCreate-specific message.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      Amount: XRP_AMOUNT,
+      Amount2: IOU_AMOUNT,
+      TradingFee: 12,
+    };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+
+    it('accepts Memos', () => {
+      const tx = ammCreate({ ...base, Memos: MEMOS });
+      expect(tx.Memos).toEqual(MEMOS);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = ammCreate({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+      expect(tx.toJSON().SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = ammCreate({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.LastLedgerSequence).toBe(1_000_000);
+      expect(tx.toJSON().LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = ammCreate({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.AccountTxnID).toBe(TXN_ID);
+      expect(tx.toJSON().AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = ammCreate({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+      expect(tx.toJSON().NetworkID).toBe(1);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = ammCreate({ ...base, Delegate: ISSUER });
+      expect(tx.Delegate).toBe(ISSUER);
+      expect(tx.toJSON().Delegate).toBe(ISSUER);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = ammCreate({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() => ammCreate({ ...base, Memos: 'not-an-array' } as any)).toThrow(
+        /invalid Memos/,
+      );
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => ammCreate({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        ammCreate({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => ammCreate({ ...base, AccountTxnID: 12345 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => ammCreate({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() => ammCreate({ ...base, Delegate: ACCOUNT })).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => ammCreate({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+  });
 });

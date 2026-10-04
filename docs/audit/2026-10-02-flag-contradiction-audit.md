@@ -493,7 +493,7 @@ funded via the faucet.
 
 Harness: `173-xrpjson-testing/integration/tests/15-flag-defect-verification.mjs`
 (Defects 2 and 3, against `xrpl@4.6.0`) plus
-`146-xrpjs/scratch/sponsorship-ledger-check.mjs` (Defect 1, against
+`175-xrpjson/scratch/sponsorship-ledger-check.mjs` (Defect 1, against
 `xrpl@5.3.0`). Both import the **locally built** dist, not the published
 `xrpjson@1.2.0` in that repo's `node_modules`, which does not contain the
 fixes. **Result: 10 passed, 0 failed, 1 skipped.**
@@ -591,6 +591,6 @@ The first run scored 8/11 and looked like two real defects. Neither was.
 - **No commit was made.** Git writes are unavailable in this sandbox (see
   `AGENTS.md`). The work is in the working tree for the maintainer.
 - **`tests/zz-tmp-*` and `scratch/*` boundary checks** were run and deleted;
-  no stray files remain in `146-xrpjs`. One throwaway probe
+  no stray files remain in `175-xrpjson`. One throwaway probe
   (`probe-amendments.mjs`) could not be deleted in the `173-xrpjson-testing`
   tree — the sandbox denies deletes there — and should be removed by hand.

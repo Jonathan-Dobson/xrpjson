@@ -123,6 +123,7 @@
  *     line 13: "enable the `tfMutable` flag (`0x00000010`) to make the NFT
  *     mutable.").
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { Amount } from '../../types/amounts.js';
 import type { NFTokenMintFlagsInterface } from '../../types/flags.js';
 import {
@@ -134,6 +135,7 @@ import {
   isNumber,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -151,7 +153,21 @@ const MAX_URI_HEX_CHARS = MAX_URI_BYTES * 2;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface NftokenMintProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface NftokenMintProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   Account: string;
   /** Taxon for the NFToken series. UInt32 (0..2^32-1). */
   NFTokenTaxon: number;
@@ -173,8 +189,6 @@ export interface NftokenMintProps {
    * tfOnlyXRP, tfTransferable, tfMutable).
    */
   Flags?: number | NFTokenMintFlagsInterface | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface NftokenMint extends Readonly<NftokenMintProps> {
@@ -383,6 +397,18 @@ export function nftokenMint(props: NftokenMintProps): NftokenMint {
       }
     }
   }
+
+  // ─── Base transaction fields ───
+  // Runtime backstop for the seven shared fields: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // `NftokenMintProps` now extends `BasePropsFields`: the seven shared
+  // fields are type-checked at compile time, and this call is the
+  // runtime backstop. Without it they reached `buildFrozenTx` unchecked. Placed AFTER the NFTokenMint-specific checks so a more
+  // specific message wins for a more specific mistake.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'NFTokenMint', ...props });
 
   return buildFrozenTx<NftokenMintProps, NftokenMint>(
     'NFTokenMint',

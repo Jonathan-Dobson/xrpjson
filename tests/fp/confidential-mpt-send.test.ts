@@ -705,4 +705,132 @@ describe('fp/confidentialMptSend()', () => {
       expect(methodNames.sort()).toEqual(['toJSON', 'validate', 'with']);
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `ConfidentialMptSendProps` now extends `BasePropsFields`, so the seven
+  // shared base fields that were previously absent from this factory's prop
+  // type — Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID,
+  // Delegate and TicketSequence — are part of the type surface and survive onto
+  // the frozen transaction.
+  //
+  // Every value below is chosen to be VALID under `validateBaseTransaction`
+  // (src/validation/base.ts), so this block stays green once that call is
+  // added. The factory now CALLS that validator as its last check before
+  // `buildFrozenTx`, so the reject-side assertions below assert the
+  // validator's own messages. Bad values are cast `as any` deliberately — the
+  // point is the runtime check, and a type error would make the test
+  // uncompilable.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      MPTokenIssuanceID: MPT_ID,
+      Destination: DESTINATION,
+      SenderEncryptedAmount: CIPHERTEXT,
+      DestinationEncryptedAmount: CIPHERTEXT,
+      IssuerEncryptedAmount: CIPHERTEXT,
+      ZKProof: ZK_PROOF,
+      AmountCommitment: EC_POINT,
+      BalanceCommitment: EC_POINT,
+    };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+
+    it('accepts Memos', () => {
+      const tx = confidentialMptSend({ ...base, Memos: MEMOS });
+      expect(tx.Memos).toEqual(MEMOS);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = confidentialMptSend({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+      expect(tx.toJSON().SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = confidentialMptSend({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.LastLedgerSequence).toBe(1_000_000);
+      expect(tx.toJSON().LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = confidentialMptSend({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.AccountTxnID).toBe(TXN_ID);
+      expect(tx.toJSON().AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = confidentialMptSend({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+      expect(tx.toJSON().NetworkID).toBe(1);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = confidentialMptSend({ ...base, Delegate: DESTINATION });
+      expect(tx.Delegate).toBe(DESTINATION);
+      expect(tx.toJSON().Delegate).toBe(DESTINATION);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = confidentialMptSend({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    // ─── Reject side ───
+
+    it('rejects a malformed Memos value', () => {
+      expect(() => confidentialMptSend({ ...base, Memos: 'not-an-array' } as any)).toThrow(
+        /invalid Memos/,
+      );
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => confidentialMptSend({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        confidentialMptSend({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => confidentialMptSend({ ...base, AccountTxnID: 12345 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => confidentialMptSend({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() =>
+        confidentialMptSend({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+    });
+
+    it('rejects a Delegate equal to Account', () => {
+      expect(() => confidentialMptSend({ ...base, Delegate: base.Account })).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => confidentialMptSend({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => confidentialMptSend({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+  });
 });

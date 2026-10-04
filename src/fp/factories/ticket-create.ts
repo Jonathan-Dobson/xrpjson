@@ -70,7 +70,7 @@
  */
 import { isAccount, isNumber } from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
-import type { BaseTransactionFields } from '../../types/base.js';
+import type { BasePropsFields } from '../../types/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -91,7 +91,7 @@ const MAX_TICKETS_PER_TX = 250;
 // rather than inherited only because TicketCreate has no defined flags of its
 // own, and the narrower `number` type is worth stating explicitly here.
 type TicketCreateBaseFields = Omit<
-  BaseTransactionFields,
+  BasePropsFields,
   'TransactionType' | 'Flags'
 >;
 

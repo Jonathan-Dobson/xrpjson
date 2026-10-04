@@ -109,8 +109,10 @@
  *      `typeof Account === 'string'` (`src/validation/base.ts:36-42`).
  *      The factory is consistent with all other fp factories.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isNumber, isString } from '../../validation/helpers.js';
 import { ValidationError } from '../../errors.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Spec constants ──────────────────────────────────────────────────
@@ -162,7 +164,19 @@ export interface SignerEntryData {
   };
 }
 
-export interface SignerListSetProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface SignerListSetProps
+  extends Omit<BasePropsFields, 'TransactionType' | 'Flags'> {
   /** The unique address of the transaction sender. */
   Account: string;
   /**
@@ -183,10 +197,6 @@ export interface SignerListSetProps {
   SignerEntries?: SignerEntryData[] | undefined;
   /** Bit-flags for this transaction. SignerListSet has no defined flags. */
   Flags?: number | undefined;
-  /** Fee in drops. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface SignerListSet
@@ -345,6 +355,18 @@ export function signerListSet(props: SignerListSetProps): SignerListSet {
       `SignerListSet: SignerQuorum (${props.SignerQuorum}) must not exceed the sum of SignerWeights (${weightSum}) (temBAD_QUORUM)`,
     );
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the SignerListSet-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'SignerListSet', ...props });
 
   return buildFrozenTx<SignerListSetProps, SignerListSet>(
     'SignerListSet',

@@ -108,7 +108,9 @@
  *     (`isMPTIssuer` implementation, including the base58 + AccountID
  *     decoding dependency).
  */
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isHex, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -147,7 +149,21 @@ const INTEGER_SANITY_CHECK = /^[0-9]+$/u;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface ConfidentialMptConvertBackProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface ConfidentialMptConvertBackProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The account performing the conversion. Must be a valid XRPL classic/X-address. */
   Account: string;
   /** UInt192 — MPT issuance identifier (48-char hex). */
@@ -166,10 +182,6 @@ export interface ConfidentialMptConvertBackProps {
   ZKProof: string;
   /** 66-byte ElGamal ciphertext for the auditor (132 hex chars). Required iff issuance has AuditorEncryptionKey. */
   AuditorEncryptedAmount?: string | undefined;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface ConfidentialMptConvertBack
@@ -281,6 +293,21 @@ export function confidentialMptConvertBack(
   // NOTE: `Account` must NOT be the issuer of `MPTokenIssuanceID`
   // (XLS-0096 §11.5.1.2 / xrpl.js `isMPTIssuer` guard). Not enforced
   // here — see `## Divergences` header for why.
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the ConfidentialMPTConvertBack-specific checks so a more
+  // specific message wins for a more specific mistake, and this acts as the
+  // backstop for everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({
+    TransactionType: 'ConfidentialMPTConvertBack',
+    ...props,
+  });
 
   return buildFrozenTx<
     ConfidentialMptConvertBackProps,

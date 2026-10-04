@@ -67,7 +67,7 @@
  *   This is a permissive addition, not a tightening — callers who
  *   pass a non-zero Flags get the value stored verbatim.
  */
-import type { BaseTransactionFields } from '../../types/base.js';
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isHex, isString } from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
@@ -88,8 +88,19 @@ const CHECK_ID_ZERO =
 
 // ─── Public types ────────────────────────────────────────────────────
 
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
 export interface CheckCancelProps extends Omit<
-  BaseTransactionFields,
+  BasePropsFields,
   'TransactionType' | 'Flags'
 > {
   /** The transaction submitter (the Check source, destination, or any

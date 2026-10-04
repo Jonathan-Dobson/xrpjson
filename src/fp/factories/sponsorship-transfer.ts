@@ -96,11 +96,13 @@
  * lets you build a Create/Reassign tx with no ObjectID and no
  * SponsorSignature, which the ledger rejects with `temMALFORMED`.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type {
   SponsorshipTransferFlagsInterface,
 } from '../../types/flags.js';
 import { SponsorshipTransferFlags } from '../../types/flags.js';
 import { isAccount, isHex, isRecord, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -169,7 +171,21 @@ export type SponsorSignatureProps =
       }[];
     };
 
-export interface SponsorshipTransferProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface SponsorshipTransferProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (sponsee or sponsor). */
   Account: string;
   /**
@@ -206,8 +222,6 @@ export interface SponsorshipTransferProps {
    * Create / Reassign; optional for object-level Create / Reassign.
    */
   SponsorSignature?: SponsorSignatureProps | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface SponsorshipTransfer extends Readonly<SponsorshipTransferProps> {
@@ -461,6 +475,18 @@ export function sponsorshipTransfer(
       'SponsorshipTransfer',
     );
   }
+
+  // ─── Base transaction fields ───
+  // Runtime backstop for the seven shared fields: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // `SponsorshipTransferProps` now extends `BasePropsFields`: the seven shared
+  // fields are type-checked at compile time, and this call is the
+  // runtime backstop. Without it they reached `buildFrozenTx` unchecked. Placed AFTER the SponsorshipTransfer-specific checks so a
+  // more specific message wins for a more specific mistake.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'SponsorshipTransfer', ...props });
 
   return buildFrozenTx<SponsorshipTransferProps, SponsorshipTransfer>(
     'SponsorshipTransfer',

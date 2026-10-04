@@ -398,4 +398,131 @@ describe('fp/xchainAddClaimAttestation()', () => {
   it('.validate() is a no-op (validation already happened)', () => {
     expect(() => make().validate()).not.toThrow();
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `xchainAddClaimAttestation` now calls `validateBaseTransaction` as a
+  // backstop, placed after its own XChainAddClaimAttestation-specific checks
+  // (payment.ts:123 is the reference). Before that call, every REJECT case
+  // below built a frozen transaction silently.
+  //
+  // `XchainAddClaimAttestationProps` does not yet extend `BasePropsFields`, so
+  // the seven shared fields are not on this props type yet — which is why the
+  // `as any` casts appear on the ACCEPT cases too, not only the reject ones.
+  // That is the type half of the same bug; without the casts these would not
+  // compile.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      Amount: AMOUNT,
+      AttestationRewardAccount: ATTESTATION_REWARD_ACCOUNT,
+      AttestationSignerAccount: ATTESTATION_SIGNER_ACCOUNT,
+      Destination: DESTINATION,
+      OtherChainSource: OTHER_CHAIN_SOURCE,
+      PublicKey: PUBLIC_KEY,
+      Signature: SIGNATURE,
+      WasLockingChainSend: 1,
+      XChainClaimID: XCHAIN_CLAIM_ID,
+      XChainBridge: XCHAIN_BRIDGE_XRP,
+    };
+    // A valid classic address distinct from ACCOUNT.
+    const DELEGATE = LOCKING_CHAIN_DOOR;
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+
+    it('accepts Memos', () => {
+      const tx = xchainAddClaimAttestation({ ...base, Memos: MEMOS } as any);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() =>
+        xchainAddClaimAttestation({ ...base, Memos: 'not-an-array' } as any),
+      ).toThrow(/invalid Memos/);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = xchainAddClaimAttestation({ ...base, SourceTag: 99 } as any);
+      expect(tx.toJSON().SourceTag).toBe(99);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() =>
+        xchainAddClaimAttestation({ ...base, SourceTag: 'NaN' } as any),
+      ).toThrow(/SourceTag must be a number/);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = xchainAddClaimAttestation({
+        ...base,
+        LastLedgerSequence: 1_000_000,
+      } as any);
+      expect(tx.toJSON().LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        xchainAddClaimAttestation({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = xchainAddClaimAttestation({
+        ...base,
+        AccountTxnID: TXN_ID,
+      } as any);
+      expect(tx.toJSON().AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() =>
+        xchainAddClaimAttestation({ ...base, AccountTxnID: 99 } as any),
+      ).toThrow(/AccountTxnID must be a string/);
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = xchainAddClaimAttestation({ ...base, NetworkID: 1 } as any);
+      expect(tx.toJSON().NetworkID).toBe(1);
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() =>
+        xchainAddClaimAttestation({ ...base, NetworkID: {} } as any),
+      ).toThrow(/NetworkID must be a number/);
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = xchainAddClaimAttestation({
+        ...base,
+        Delegate: DELEGATE,
+      } as any);
+      expect(tx.toJSON().Delegate).toBe(DELEGATE);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() =>
+        xchainAddClaimAttestation({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() =>
+        xchainAddClaimAttestation({ ...base, Delegate: ACCOUNT } as any),
+      ).toThrow(/cannot be the same/);
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = xchainAddClaimAttestation({
+        ...base,
+        Sequence: 0,
+        TicketSequence: 42,
+      } as any);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() =>
+        xchainAddClaimAttestation({ ...base, TicketSequence: 'nope' } as any),
+      ).toThrow(/TicketSequence must be a number/);
+    });
+  });
 });

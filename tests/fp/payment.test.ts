@@ -189,13 +189,16 @@ describe('fp/payment()', () => {
   });
 
   // ─── Base transaction fields ──────────────────────────────────────────────
-  // `PaymentProps` now extends `BaseTransactionFields`, so the seven fields
+  // `PaymentProps` now extends `BasePropsFields`, so the seven fields
   // that were previously absent from every factory's prop type are accepted
   // here — and `validateBaseTransaction` checks them. Before this, each of the
   // REJECT cases below built a frozen transaction silently.
   //
-  // This is family 1 of the fix. The remaining 78 factories still do their own
-  // thing, so a test here is not a claim about the package.
+  // This is family 1 of the fix, and it was the reference for the remaining
+  // 78 factories. Use `BasePropsFields` as the base, not
+  // `BaseTransactionFields` — the latter's trailing index signature makes
+  // `Omit<...>` collapse and silently drop every named member. See the doc
+  // comment on BasePropsFields in src/types/base.ts.
   describe('BaseTransactionFields', () => {
     const base = {
       Account: ACCOUNT_A,
@@ -273,6 +276,12 @@ describe('fp/payment()', () => {
       ).not.toThrow(); // runtime is permissive; the TYPE is what blocks it
       // Type-level guarantee, verified by the compiler rather than at runtime:
       //   payment({ ...base, TransactionType: 'Payment' })  //  ← TS2353
+      //
+      // This only became true once the base became `BasePropsFields`. Under
+      // the previous `Omit<BaseTransactionFields, ...>` the index signature
+      // swallowed every named member, so a caller-supplied TransactionType
+      // was accepted silently. See the doc comment on BasePropsFields in
+      // src/types/base.ts.
     });
 
     it('survives .with() with a base field set', () => {

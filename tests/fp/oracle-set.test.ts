@@ -638,4 +638,115 @@ describe('fp/oracleSet()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // The props type extends `BasePropsFields`, so the seven shared base fields
+  // are part of the type surface. The factory now CALLS
+  // `validateBaseTransaction` as its final check, immediately before
+  // `buildFrozenTx` and after every OracleSet-specific check, so the reject
+  // cases below reach the shared validator's messages — and a more specific
+  // mistake (e.g. a bad PriceDataSeries) still produces the OracleSet message.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: OWNER,
+      OracleDocumentID: DOC_ID,
+      LastUpdateTime: UPDATE_TIME,
+      PriceDataSeries: PRICE_SERIES,
+    };
+    const MEMOS = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+    const TXN_ID = 'AB'.repeat(32);
+    // A valid classic address distinct from OWNER.
+    const DELEGATE = 'rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe';
+
+    it('accepts Memos', () => {
+      const tx = oracleSet({ ...base, Memos: MEMOS });
+      expect(tx.Memos).toEqual(MEMOS);
+      expect(tx.toJSON().Memos).toEqual(MEMOS);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() => oracleSet({ ...base, Memos: 'not-an-array' } as any)).toThrow(
+        /invalid Memos/,
+      );
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = oracleSet({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => oracleSet({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = oracleSet({ ...base, LastLedgerSequence: 1_000_000 });
+      expect(tx.LastLedgerSequence).toBe(1_000_000);
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() => oracleSet({ ...base, LastLedgerSequence: 'soon' } as any)).toThrow(
+        /LastLedgerSequence must be a number/,
+      );
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = oracleSet({ ...base, AccountTxnID: TXN_ID });
+      expect(tx.AccountTxnID).toBe(TXN_ID);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => oracleSet({ ...base, AccountTxnID: 12345 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = oracleSet({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => oracleSet({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('accepts a Delegate distinct from Account', () => {
+      const tx = oracleSet({ ...base, Delegate: DELEGATE });
+      expect(tx.Delegate).toBe(DELEGATE);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() => oracleSet({ ...base, Delegate: 'not-an-address' } as any)).toThrow(
+        /invalid Delegate/,
+      );
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() => oracleSet({ ...base, Delegate: OWNER })).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('accepts TicketSequence alongside Sequence: 0', () => {
+      const tx = oracleSet({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() => oracleSet({ ...base, TicketSequence: 'nope' } as any)).toThrow(
+        /TicketSequence must be a number/,
+      );
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => oracleSet({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+  });
 });

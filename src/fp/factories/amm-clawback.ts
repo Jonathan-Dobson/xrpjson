@@ -130,6 +130,7 @@
  *     `tfClawTwoAssets`."
  */
 import type { IssuedCurrency, IssuedCurrencyAmount, Currency } from '../../types/amounts.js';
+import type { BasePropsFields } from '../../types/base.js';
 import type { ClawbackFlagsInterface } from '../../types/flags.js';
 import {
   isAccount,
@@ -139,6 +140,7 @@ import {
   isString,
 } from '../../validation/helpers.js';
 import { ValidationError } from '../../errors.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
 // ─── Spec constants ──────────────────────────────────────────────────
@@ -164,7 +166,21 @@ const CURRENCY_HEX_LENGTH = 40;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface AmmClawbackProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface AmmClawbackProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The issuer submitting the clawback (must equal `Asset.issuer`). */
   Account: string;
   /** The holder whose tokens will be clawed back from the AMM pool. */
@@ -186,8 +202,6 @@ export interface AmmClawbackProps {
   Amount?: IssuedCurrencyAmount | undefined;
   /** Bit-flags: only `tfClawTwoAssets` (0x00000001) is defined. */
   Flags?: number | ClawbackFlagsInterface | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface AmmClawback extends Readonly<AmmClawbackProps> {
@@ -344,6 +358,18 @@ export function ammClawback(props: AmmClawbackProps): AmmClawback {
       `AMMClawback: Flags may only set tfClawTwoAssets (0x${TF_CLAW_TWO_ASSETS.toString(16)}); unknown bit(s): 0x${unknownBits.toString(16)}`,
     );
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the AMMClawback-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'AMMClawback', ...props });
 
   return buildFrozenTx<AmmClawbackProps, AmmClawback>(
     'AMMClawback',

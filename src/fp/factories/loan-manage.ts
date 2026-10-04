@@ -45,8 +45,10 @@
  * Source citation:
  *   - xrpl.js `validateLoanManage` lines 86-96.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { LoanManageFlagsInterface } from '../../types/flags.js';
 import { isAccount, isLedgerEntryId } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -58,7 +60,21 @@ const TF_LOAN_UNIMPAIR = 0x00040000;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface LoanManageProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface LoanManageProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender (must be `LoanBroker.Owner`). */
   Account: string;
   /** The ID of the `Loan` ledger entry to manage. 64-char hex. */
@@ -69,10 +85,6 @@ export interface LoanManageProps {
    * boolean-map `LoanManageFlagsInterface`.
    */
   Flags?: number | LoanManageFlagsInterface | undefined;
-  /** Fee in XRP (drops), base-10 integer string. */
-  Fee?: string | undefined;
-  /** Account sequence number. */
-  Sequence?: number | undefined;
 }
 
 export interface LoanManage extends Readonly<LoanManageProps> {
@@ -137,6 +149,18 @@ export function loanManage(props: LoanManageProps): LoanManage {
       'LoanManage: tfLoanDefault, tfLoanImpair, and tfLoanUnimpair are mutually exclusive; only one may be set',
     );
   }
+
+  // ─── Base transaction fields ───
+  // Runtime backstop for the seven shared fields: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // `LoanManageProps` now extends `BasePropsFields`: the seven shared
+  // fields are type-checked at compile time, and this call is the
+  // runtime backstop. Without it they reached `buildFrozenTx` unchecked. Placed AFTER the LoanManage-specific checks so a more
+  // specific message wins for a more specific mistake.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'LoanManage', ...props });
 
   return buildFrozenTx<LoanManageProps, LoanManage>(
     'LoanManage',

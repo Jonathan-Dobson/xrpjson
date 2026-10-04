@@ -91,7 +91,9 @@
  *              xrpl.js `validateCredentialCreate` calls
  *              `validateRequiredField(tx, 'Account', isString)`.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isHex, isNumber, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -112,7 +114,21 @@ const ACCOUNT_ZERO = 'rHb9CJAWyB4rj91VRWn96Dkukn4MRtfQ';
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface CredentialCreateProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface CredentialCreateProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The issuer of the credential. */
   Account: string;
   /** The subject of the credential. */
@@ -125,8 +141,6 @@ export interface CredentialCreateProps {
   URI?: string | undefined;
   /** Bit-flags for this transaction. (No flags are defined for this tx.) */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface CredentialCreate
@@ -258,6 +272,18 @@ export function credentialCreate(
   if (props.Expiration !== undefined) {
     validateExpiration(props.Expiration);
   }
+
+  // ─── Base transaction fields ───
+  // Runtime backstop for the seven shared fields: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // `CredentialCreateProps` now extends `BasePropsFields`: the seven shared
+  // fields are type-checked at compile time, and this call is the
+  // runtime backstop. Without it they reached `buildFrozenTx` unchecked. Placed AFTER the CredentialCreate-specific checks so a more
+  // specific message wins for a more specific mistake.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'CredentialCreate', ...props });
 
   return buildFrozenTx<CredentialCreateProps, CredentialCreate>(
     'CredentialCreate',

@@ -53,7 +53,7 @@
  *      String | UInt256`. xrpl.js `typeof tx.InvoiceID !== 'string'`
  *      accepts any string; the class uses `isString`.
  */
-import type { BaseTransactionFields } from '../../types/base.js';
+import type { BasePropsFields } from '../../types/base.js';
 import type { Amount, MPTAmount } from '../../types/amounts.js';
 import { isAccount, isAmount, isHex, isNumber, isString } from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
@@ -70,8 +70,19 @@ const INVOICE_ID_LENGTH = 64;
 
 // ─── Public types ────────────────────────────────────────────────────
 
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
 export interface CheckCreateProps extends Omit<
-  BaseTransactionFields,
+  BasePropsFields,
   'TransactionType' | 'Flags'
 > {
   /** The unique address of the transaction sender (the Check writer). */

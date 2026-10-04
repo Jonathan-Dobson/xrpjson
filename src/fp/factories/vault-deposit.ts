@@ -33,8 +33,10 @@
  *      numeric string and does not check the sign of the `value`
  *      sub-field of object amounts.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { Amount, MPTAmount } from '../../types/amounts.js';
 import { isAmount, isHex, isString } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith } from '../shape.js';
 
@@ -48,7 +50,21 @@ const VAULT_ID_ZERO =
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface VaultDepositProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface VaultDepositProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   /** The unique address of the transaction sender. */
   Account: string;
   /** The ID of the vault to deposit into. 64-char hex. */
@@ -57,8 +73,6 @@ export interface VaultDepositProps {
   Amount: Amount | MPTAmount;
   /** Bit-flags for this transaction. VaultDeposit has no defined flags. */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface VaultDeposit extends Readonly<VaultDepositProps> {
@@ -137,6 +151,18 @@ export function vaultDeposit(props: VaultDepositProps): VaultDeposit {
       'VaultDeposit: Amount must be strictly positive (non-zero, non-negative)',
     );
   }
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared fields this factory now accepts through
+  // `BasePropsFields` but does not otherwise check: Memos, SourceTag,
+  // LastLedgerSequence, AccountTxnID, NetworkID, Delegate, TicketSequence.
+  // Placed AFTER the VaultDeposit-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'VaultDeposit', ...props });
 
   return buildFrozenTx<VaultDepositProps, VaultDeposit>(
     'VaultDeposit',

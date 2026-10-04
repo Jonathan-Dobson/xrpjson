@@ -19,6 +19,8 @@ import { describe, it, expect } from 'vitest';
 import { permissionedDomainDelete } from '../../src/fp/factories/permissioned-domain-delete.js';
 
 const ACCOUNT = 'rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh';
+// Distinct, well-formed XRPL classic address — used as a Delegate.
+const DELEGATE = 'rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe';
 
 // 64-char hex ledger entry ID, non-zero.
 const DOMAIN_ID =
@@ -236,6 +238,140 @@ describe('fp/permissionedDomainDelete()', () => {
     it('.validate() is a no-op (no throw after construction)', () => {
       const tx = make();
       expect(() => tx.validate()).not.toThrow();
+    });
+  });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `PermissionedDomainDeleteProps` now extends `BasePropsFields`, so the seven
+  // shared base fields are part of this props type for the first time. Every
+  // factory's props type is being converted to `BasePropsFields` in one
+  // library-wide pass.
+  //
+  // Every accept value below is chosen to be VALID under
+  // `validateBaseTransaction` (src/validation/base.ts). The factory now CALLS
+  // that validator as its final check, immediately before `buildFrozenTx` and
+  // after the PermissionedDomainDelete-specific checks, so the reject cases
+  // below reach the shared validator's messages — and a more specific mistake
+  // (e.g. a bad DomainID) still produces the factory-specific message.
+  describe('BaseTransactionFields', () => {
+    const base = { Account: ACCOUNT, DomainID: DOMAIN_ID };
+
+    it('accepts Memos', () => {
+      const memos = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+      const tx = permissionedDomainDelete({ ...base, Memos: memos });
+      expect(tx.Memos).toEqual(memos);
+    });
+
+    it('accepts SourceTag', () => {
+      const tx = permissionedDomainDelete({ ...base, SourceTag: 99 });
+      expect(tx.SourceTag).toBe(99);
+    });
+
+    it('accepts LastLedgerSequence', () => {
+      const tx = permissionedDomainDelete({ ...base, LastLedgerSequence: 1234567 });
+      expect(tx.LastLedgerSequence).toBe(1234567);
+    });
+
+    it('accepts AccountTxnID', () => {
+      const tx = permissionedDomainDelete({ ...base, AccountTxnID: 'A'.repeat(64) });
+      expect(tx.AccountTxnID).toBe('A'.repeat(64));
+    });
+
+    it('accepts NetworkID', () => {
+      const tx = permissionedDomainDelete({ ...base, NetworkID: 1 });
+      expect(tx.NetworkID).toBe(1);
+    });
+
+    it('accepts a distinct Delegate', () => {
+      const tx = permissionedDomainDelete({ ...base, Delegate: DELEGATE });
+      expect(tx.Delegate).toBe(DELEGATE);
+    });
+
+    it('accepts TicketSequence (with Sequence 0)', () => {
+      const tx = permissionedDomainDelete({
+        ...base,
+        Sequence: 0,
+        TicketSequence: 42,
+      });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('round-trips all seven through .toJSON()', () => {
+      const tx = permissionedDomainDelete({
+        ...base,
+        Memos: [{ Memo: { MemoType: '74', MemoData: '6869' } }],
+        SourceTag: 7,
+        LastLedgerSequence: 900,
+        AccountTxnID: 'B'.repeat(64),
+        NetworkID: 2,
+        Delegate: DELEGATE,
+        Sequence: 0,
+        TicketSequence: 5,
+      });
+      const json = tx.toJSON();
+      expect(json.Memos).toEqual([{ Memo: { MemoType: '74', MemoData: '6869' } }]);
+      expect(json.SourceTag).toBe(7);
+      expect(json.LastLedgerSequence).toBe(900);
+      expect(json.AccountTxnID).toBe('B'.repeat(64));
+      expect(json.NetworkID).toBe(2);
+      expect(json.Delegate).toBe(DELEGATE);
+      expect(json.TicketSequence).toBe(5);
+    });
+
+    it('survives .with() with base fields set', () => {
+      const tx = permissionedDomainDelete({ ...base, SourceTag: 99 });
+      const next = tx.with({ DomainID: DOMAIN_ID });
+      expect(next.SourceTag).toBe(99);
+      expect(next.DomainID).toBe(DOMAIN_ID);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() =>
+        permissionedDomainDelete({ ...base, Memos: 'not-an-array' } as any),
+      ).toThrow(/invalid Memos/);
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() =>
+        permissionedDomainDelete({ ...base, SourceTag: 'NaN' } as any),
+      ).toThrow(/SourceTag must be a number/);
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        permissionedDomainDelete({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() =>
+        permissionedDomainDelete({ ...base, AccountTxnID: 99 } as any),
+      ).toThrow(/AccountTxnID must be a string/);
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() =>
+        permissionedDomainDelete({ ...base, NetworkID: {} } as any),
+      ).toThrow(/NetworkID must be a number/);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() =>
+        permissionedDomainDelete({ ...base, TicketSequence: 'nope' } as any),
+      ).toThrow(/TicketSequence must be a number/);
+    });
+
+    it('rejects a Delegate that is not a valid address', () => {
+      expect(() =>
+        permissionedDomainDelete({ ...base, Delegate: 'not-an-address' } as any),
+      ).toThrow(/invalid Delegate/);
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() =>
+        permissionedDomainDelete({ ...base, Delegate: ACCOUNT }),
+      ).toThrow(/cannot be the same/);
     });
   });
 });

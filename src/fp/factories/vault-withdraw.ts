@@ -48,6 +48,7 @@
  *    deposit authorization is required." The class only validates the
  *    shape of each entry, not the array length bounds.
  */
+import type { BasePropsFields } from '../../types/base.js';
 import type { Amount, MPTAmount } from '../../types/amounts.js';
 import {
   isAccount,
@@ -59,6 +60,7 @@ import {
   isNumber,
   isString,
 } from '../../validation/helpers.js';
+import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 
@@ -80,7 +82,21 @@ const MAX_CREDENTIAL_IDS = 8;
 
 // ─── Public types ────────────────────────────────────────────────────
 
-export interface VaultWithdrawProps {
+// Why the two keys are omitted — do not "simplify" this away:
+//  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
+//    caller-supplied value would win. See payment.ts:36-40.
+//  Flags: re-declared per transaction with that type's narrower flag
+//    interface, which is assignable to the base's.
+//
+// The base is `BasePropsFields`, not `BaseTransactionFields`: the latter
+// carries a trailing `[key: string]: unknown` that widens `keyof` to
+// `string | number`, so `Omit<BaseTransactionFields, ...>` would collapse to
+// a bare index signature and silently drop all fourteen named members.
+// See the doc comment on BasePropsFields in src/types/base.ts.
+export interface VaultWithdrawProps extends Omit<
+  BasePropsFields,
+  'TransactionType' | 'Flags'
+> {
   Account: string;
   /** The ID of the vault to withdraw from. 64-char hex (HASH256). */
   VaultID: string;
@@ -100,8 +116,6 @@ export interface VaultWithdrawProps {
   CredentialIDs?: string[] | undefined;
   /** VaultWithdraw has no defined flags; permitted for base-tx parity. */
   Flags?: number | undefined;
-  Fee?: string | undefined;
-  Sequence?: number | undefined;
 }
 
 export interface VaultWithdraw extends Readonly<VaultWithdrawProps> {
@@ -228,6 +242,19 @@ export function vaultWithdraw(props: VaultWithdrawProps): VaultWithdraw {
   // elsewhere and may be reused for downstream sub-field checks.
   void isIssuedCurrencyAmount;
   void isMPTAmount;
+
+  // ─── Base transaction fields ───
+  // Catches the seven shared base fields this factory does not otherwise
+  // check: Memos, SourceTag, LastLedgerSequence, AccountTxnID, NetworkID,
+  // Delegate, TicketSequence.
+  //
+  // Placed AFTER the VaultWithdraw-specific checks so a more specific message
+  // wins for a more specific mistake, and this acts as the backstop for
+  // everything shared across transaction types.
+  //
+  // `TransactionType` is supplied because the validator checks a transaction,
+  // not a props bag — the factory injects it in `buildFrozenTx` below.
+  validateBaseTransaction({ TransactionType: 'VaultWithdraw', ...props });
 
   return buildFrozenTx<VaultWithdrawProps, VaultWithdraw>(
     'VaultWithdraw',

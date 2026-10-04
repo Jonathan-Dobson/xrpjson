@@ -320,4 +320,97 @@ describe('fp/vaultClawback()', () => {
       expect(() => tx.validate()).not.toThrow();
     });
   });
+
+  // ─── Base transaction fields ──────────────────────────────────────────────
+  // `VaultClawbackProps` now extends `BasePropsFields`, so the seven fields
+  // that were previously absent from the prop type are accepted here — and
+  // `validateBaseTransaction` checks them. Before this, each of the REJECT
+  // cases below built a frozen transaction silently.
+  //
+  // Note the base is `BasePropsFields` (no index signature) rather than
+  // `BaseTransactionFields` — see the doc comment in src/types/base.ts.
+  describe('BaseTransactionFields', () => {
+    const base = {
+      Account: ACCOUNT,
+      VaultID: VAULT_ID,
+      Holder: HOLDER,
+    };
+
+    it('accepts TicketSequence', () => {
+      const tx = vaultClawback({ ...base, Sequence: 0, TicketSequence: 42 });
+      expect(tx.TicketSequence).toBe(42);
+      expect(tx.toJSON().TicketSequence).toBe(42);
+    });
+
+    it('rejects a non-numeric TicketSequence', () => {
+      expect(() =>
+        vaultClawback({ ...base, TicketSequence: 'nope' } as any),
+      ).toThrow(/TicketSequence must be a number/);
+    });
+
+    it('accepts a valid Memos array', () => {
+      const memos = [{ Memo: { MemoType: '74', MemoData: '6869' } }];
+      const tx = vaultClawback({ ...base, Memos: memos });
+      expect(tx.Memos).toEqual(memos);
+    });
+
+    it('rejects a malformed Memos value', () => {
+      expect(() => vaultClawback({ ...base, Memos: 'not-an-array' } as any)).toThrow(
+        /invalid Memos/,
+      );
+    });
+
+    it('rejects a non-numeric SourceTag', () => {
+      expect(() => vaultClawback({ ...base, SourceTag: 'NaN' } as any)).toThrow(
+        /SourceTag must be a number/,
+      );
+    });
+
+    it('rejects a non-numeric NetworkID', () => {
+      expect(() => vaultClawback({ ...base, NetworkID: {} } as any)).toThrow(
+        /NetworkID must be a number/,
+      );
+    });
+
+    it('rejects a non-string AccountTxnID', () => {
+      expect(() => vaultClawback({ ...base, AccountTxnID: 42 } as any)).toThrow(
+        /AccountTxnID must be a string/,
+      );
+    });
+
+    it('rejects a non-numeric LastLedgerSequence', () => {
+      expect(() =>
+        vaultClawback({ ...base, LastLedgerSequence: 'soon' } as any),
+      ).toThrow(/LastLedgerSequence must be a number/);
+    });
+
+    it('rejects a non-string Fee', () => {
+      expect(() => vaultClawback({ ...base, Fee: 12 } as any)).toThrow(
+        /Fee must be a string/,
+      );
+    });
+
+    it('rejects an invalid Delegate address', () => {
+      expect(() => vaultClawback({ ...base, Delegate: 'not-an-address' })).toThrow(
+        /invalid Delegate/,
+      );
+    });
+
+    it('accepts a distinct Delegate', () => {
+      const tx = vaultClawback({ ...base, Delegate: HOLDER });
+      expect(tx.Delegate).toBe(HOLDER);
+    });
+
+    it('rejects Delegate equal to Account', () => {
+      expect(() => vaultClawback({ ...base, Delegate: ACCOUNT })).toThrow(
+        /cannot be the same/,
+      );
+    });
+
+    it('survives .with() with a base field set', () => {
+      const tx = vaultClawback({ ...base, SourceTag: 99 });
+      const next = tx.with({ Holder: ISSUER === HOLDER ? ACCOUNT : HOLDER });
+      expect(next.SourceTag).toBe(99);
+    });
+  });
 });
