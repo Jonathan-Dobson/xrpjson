@@ -6,7 +6,7 @@
  * of a transfer: after this transaction succeeds, a corresponding
  * `XChainCommit` transaction on the source chain can reference the
  * resulting `XChainClaimID`. Validation happens at construction; there
- * is no way to construct an invalid tx.
+ * is no way to construct an invalid tx from the fields it models.
  *
  *   import { xchainCreateClaimID } from 'xrpjson';
  *   const tx = xchainCreateClaimID({

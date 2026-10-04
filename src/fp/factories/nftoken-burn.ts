@@ -2,7 +2,8 @@
  * Functional NFTokenBurn factory — frozen-object style.
  *
  * Permanently removes an NFToken object from its NFTokenPage. Validation
- * happens at construction; there is no way to construct an invalid tx.
+ * happens at construction; there is no way to construct an invalid tx from the
+ * fields it models.
  *
  *   import { nftokenBurn } from 'xrpjson';
  *   const tx = nftokenBurn({ Account, NFTokenID });

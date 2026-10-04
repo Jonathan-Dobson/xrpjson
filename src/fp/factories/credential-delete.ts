@@ -3,7 +3,7 @@
  *
  * Deletes a `Credential` ledger entry. The holder or the issuer may
  * submit this transaction. Validation happens at construction; there is
- * no way to construct an invalid tx.
+ * no way to construct an invalid tx from the fields it models.
  *
  *   import { credentialDelete } from 'xrpjson';
  *   const tx = credentialDelete({ Account, Subject, CredentialType });

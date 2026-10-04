@@ -2,7 +2,8 @@
  * Functional NFTokenMint factory — frozen-object style.
  *
  * Creates a new NFToken (NFT) on the ledger. Validation happens at
- * construction; there is no way to construct an invalid tx.
+ * construction; there is no way to construct an invalid tx from the fields it
+ * models.
  *
  *   import { nftokenMint } from 'xrpjson';
  *   const tx = nftokenMint({ Account, NFTokenTaxon: 0 });

@@ -4,7 +4,8 @@
  * Completes a cross-chain transfer of value by claiming funds on the
  * destination chain after a quorum of witness attestations have been
  * delivered for a corresponding `XChainCommit` transaction. Validation
- * happens at construction; there is no way to construct an invalid tx.
+ * happens at construction; there is no way to construct an invalid tx from the
+ * fields it models.
  *
  *   import { xchainClaim } from 'xrpjson';
  *   const tx = xchainClaim({

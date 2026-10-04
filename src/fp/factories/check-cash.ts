@@ -2,7 +2,8 @@
  * Functional CheckCash factory — frozen-object style.
  *
  * Cashes an existing Check that was created by `checkCreate`. Validation
- * happens at construction; there is no way to construct an invalid tx.
+ * happens at construction; there is no way to construct an invalid tx from the
+ * fields it models.
  *
  *   import { checkCash } from 'xrpjson';
  *   const tx = checkCash({ Account, CheckID, Amount: '100000000' });

@@ -3,7 +3,8 @@
  *
  * Authorizes another account (the `Authorize` field) to issue a set of
  * transaction types on behalf of the sender. Validation happens at
- * construction; there is no way to construct an invalid tx.
+ * construction; there is no way to construct an invalid tx from the fields it
+ * models.
  *
  *   import { delegateSet } from 'xrpjson';
  *   const tx = delegateSet({
@@ -186,8 +187,8 @@ export interface DelegateSet
  *
  * The class-based equivalent validates lazily (caller must invoke
  * `.validate()`); this functional version validates at construction.
- * There is no way to build an invalid tx — `with()` re-runs the
- * factory, so overrides are re-validated too.
+ * There is no way to build an invalid tx from the fields it models — `with()`
+ * re-runs the factory, so overrides are re-validated too.
  */
 export function delegateSet(props: DelegateSetProps): DelegateSet {
   // ── Account ── required, must be a valid XRPL classic/X-address.

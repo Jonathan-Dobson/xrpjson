@@ -6,7 +6,7 @@
  * channel destination, or any account when the channel has already
  * expired. The destination must supply `Signature` + `PublicKey`; the
  * source can omit them. Validation happens at construction; there is
- * no way to construct an invalid tx.
+ * no way to construct an invalid tx from the fields it models.
  *
  *   import { paymentChannelClaim } from 'xrpjson';
  *   const tx = paymentChannelClaim({ Account, Channel });

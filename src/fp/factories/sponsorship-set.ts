@@ -3,7 +3,8 @@
  *
  * Creates, updates, or deletes a `Sponsorship` ledger entry that defines a
  * fee-and-reserve sponsorship relationship between two accounts. Validation
- * happens at construction; there is no way to construct an invalid tx.
+ * happens at construction; there is no way to construct an invalid tx from the
+ * fields it models.
  *
  *   import { sponsorshipSet } from 'xrpjson';
  *   // Create (sponsor allocates a 5-reserve budget to the sponsee)

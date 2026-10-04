@@ -4,7 +4,7 @@
  * Bids on an Automated Market Maker's (AMM's) auction slot. If the
  * bid wins, the sender can trade against the AMM at a discounted
  * fee for up to 24 hours. Validation happens at construction;
- * there is no way to construct an invalid tx.
+ * there is no way to construct an invalid tx from the fields it models.
  *
  *   import { ammBid } from 'xrpjson';
  *   const tx = ammBid({

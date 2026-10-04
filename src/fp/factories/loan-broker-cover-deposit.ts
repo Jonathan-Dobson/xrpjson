@@ -3,7 +3,8 @@
  *
  * The Loan Broker owner deposits First-Loss Capital into a `LoanBroker`
  * ledger entry to back the vault against loan defaults. Validation happens
- * at construction; there is no way to construct an invalid tx.
+ * at construction; there is no way to construct an invalid tx from the fields
+ * it models.
  *
  *   import { loanBrokerCoverDeposit } from 'xrpjson';
  *   const tx = loanBrokerCoverDeposit({ Account, LoanBrokerID, Amount });

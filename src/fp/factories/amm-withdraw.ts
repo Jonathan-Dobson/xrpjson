@@ -4,7 +4,8 @@
  * Withdraws assets from an Automated Market Maker (AMM) instance by
  * returning the AMM's liquidity provider tokens (LP Tokens). The factory
  * enforces the seven mutually-exclusive AMM-withdraw modes at
- * construction; there is no way to construct an invalid tx.
+ * construction; there is no way to construct an invalid tx from the fields it
+ * models.
  *
  *   import { ammWithdraw } from 'xrpjson';
  *   const tx = ammWithdraw({

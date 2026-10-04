@@ -3,7 +3,8 @@
  *
  * Commits funds on the source chain to create a new account on the
  * destination chain via a witness-attested bridge. Validation happens at
- * construction; there is no way to construct an invalid tx.
+ * construction; there is no way to construct an invalid tx from the fields it
+ * models.
  *
  *   import { xchainAccountCreateCommit } from 'xrpjson';
  *   const tx = xchainAccountCreateCommit({

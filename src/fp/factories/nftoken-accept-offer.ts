@@ -3,7 +3,8 @@
  *
  * Accepts an existing buy or sell offer for an NFToken, or matches two
  * complementary offers in brokered mode. Validation happens at
- * construction; there is no way to construct an invalid tx.
+ * construction; there is no way to construct an invalid tx from the fields it
+ * models.
  *
  *   import { nftokenAcceptOffer } from 'xrpjson';
  *   // Direct mode — accept a sell offer:

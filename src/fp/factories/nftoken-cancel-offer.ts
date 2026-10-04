@@ -2,7 +2,8 @@
  * Functional NFTokenCancelOffer factory — frozen-object style.
  *
  * Cancels one or more existing NFTokenOffer ledger entries. Validation
- * happens at construction; there is no way to construct an invalid tx.
+ * happens at construction; there is no way to construct an invalid tx from the
+ * fields it models.
  *
  *   import { nftokenCancelOffer } from 'xrpjson';
  *   const tx = nftokenCancelOffer({ Account, NFTokenOffers: [offerId1] });

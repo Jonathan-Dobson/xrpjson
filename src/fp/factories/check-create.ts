@@ -3,7 +3,7 @@
  *
  * Creates an on-ledger Check that can be cashed by `Destination` for up to
  * `SendMax` of the source currency. Validation happens at construction;
- * there is no way to construct an invalid tx.
+ * there is no way to construct an invalid tx from the fields it models.
  *
  *   import { checkCreate } from 'xrpjson';
  *   const tx = checkCreate({ Account, Destination, SendMax });

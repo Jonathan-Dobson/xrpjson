@@ -375,8 +375,8 @@ function isSetConfidentialKeys(
  *
  * The class-based version validates lazily (caller must invoke
  * `.validate()`); this functional version validates at construction.
- * There is no way to build an invalid tx — `with()` re-runs the
- * factory, so overrides are re-validated too.
+ * There is no way to build an invalid tx from the fields it models — `with()`
+ * re-runs the factory, so overrides are re-validated too.
  */
 export function mptokenIssuanceSet(
   props: MptokenIssuanceSetProps,

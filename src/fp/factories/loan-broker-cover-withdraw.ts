@@ -2,7 +2,8 @@
  * Functional LoanBrokerCoverWithdraw factory — frozen-object style.
  *
  * Withdraws First-Loss Capital from a `LoanBroker` ledger entry. Validation
- * happens at construction; there is no way to construct an invalid tx.
+ * happens at construction; there is no way to construct an invalid tx from the
+ * fields it models.
  *
  *   import { loanBrokerCoverWithdraw } from 'xrpjson';
  *   const tx = loanBrokerCoverWithdraw({

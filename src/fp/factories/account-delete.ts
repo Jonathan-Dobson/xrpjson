@@ -3,7 +3,8 @@
  *
  * Deletes an account and any objects it owns in the XRP Ledger, sending
  * the leftover XRP to a specified destination account. Validation happens
- * at construction; there is no way to construct an invalid tx.
+ * at construction; there is no way to construct an invalid tx from the fields
+ * it models.
  *
  *   import { accountDelete } from 'xrpjson';
  *   const tx = accountDelete({ Account, Destination });

@@ -2,7 +2,8 @@
  * Functional VaultDeposit factory — frozen-object style.
  *
  * Deposits assets into a vault in exchange for vault shares. Validation
- * happens at construction; there is no way to construct an invalid tx.
+ * happens at construction; there is no way to construct an invalid tx from the
+ * fields it models.
  *
  *   import { vaultDeposit } from 'xrpjson';
  *   const tx = vaultDeposit({ Account, VaultID, Amount });

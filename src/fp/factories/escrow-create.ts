@@ -4,7 +4,7 @@
  * Set aside XRP (or, under the TokenEscrow amendment, IOU/MPT tokens) in
  * an escrow that delivers them to a predetermined recipient when
  * certain conditions are met. Validation happens at construction;
- * there is no way to construct an invalid tx.
+ * there is no way to construct an invalid tx from the fields it models.
  *
  *   import { escrowCreate } from 'xrpjson';
  *   const tx = escrowCreate({ Account, Amount, Destination, FinishAfter: 533171558 });

@@ -5,7 +5,7 @@
  * Up to 8 accounts can vote in proportion to the amount of the AMM's
  * LP Tokens they hold; the new trading fee is recomputed as a weighted
  * average of the active votes. Validation happens at construction;
- * there is no way to construct an invalid tx.
+ * there is no way to construct an invalid tx from the fields it models.
  *
  *   import { ammVote } from 'xrpjson';
  *   const tx = ammVote({

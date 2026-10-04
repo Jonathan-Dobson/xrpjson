@@ -3,7 +3,8 @@
  *
  * Creates a new `PriceOracle` ledger entry or updates an existing one,
  * identified by `(Account, OracleDocumentID)`. Validation happens at
- * construction; there is no way to construct an invalid tx.
+ * construction; there is no way to construct an invalid tx from the fields it
+ * models.
  *
  *   import { oracleSet } from 'xrpjson';
  *   const tx = oracleSet({

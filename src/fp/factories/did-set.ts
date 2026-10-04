@@ -3,7 +3,8 @@
  *
  * Creates or updates a [W3C DID][xls-40] (Decentralized Identifier) ledger
  * entry associated with the sending `Account`. Validation happens at
- * construction; there is no way to construct an invalid tx.
+ * construction; there is no way to construct an invalid tx from the fields it
+ * models.
  *
  *   import { didSet } from 'xrpjson';
  *   const tx = didSet({
@@ -216,8 +217,8 @@ function validateBlobField(
  *
  * The class-based equivalent validates lazily (caller must invoke
  * `.validate()`); this functional version validates at construction.
- * There is no way to build an invalid tx — `with()` re-runs the
- * factory, so overrides are re-validated too.
+ * There is no way to build an invalid tx from the fields it models — `with()`
+ * re-runs the factory, so overrides are re-validated too.
  */
 export function didSet(props: DIDSetProps): DIDSet {
   // ── Account ── required, must be a valid XRPL classic/X-address.

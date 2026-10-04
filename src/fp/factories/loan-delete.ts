@@ -4,7 +4,7 @@
  * Deletes an existing `Loan` ledger entry. Only the LoanBroker owner or
  * the Borrower can submit a LoanDelete (the ledger enforces this; not
  * locally checkable here). Validation happens at construction; there is
- * no way to construct an invalid tx.
+ * no way to construct an invalid tx from the fields it models.
  *
  *   import { loanDelete } from 'xrpjson';
  *   const tx = loanDelete({ Account, LoanID });

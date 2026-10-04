@@ -2,7 +2,8 @@
  * Functional PermissionedDomainSet factory — frozen-object style.
  *
  * Creates or modifies a PermissionedDomain ledger entry. Validation
- * happens at construction; there is no way to construct an invalid tx.
+ * happens at construction; there is no way to construct an invalid tx from the
+ * fields it models.
  *
  *   import { permissionedDomainSet } from 'xrpjson';
  *   const tx = permissionedDomainSet({

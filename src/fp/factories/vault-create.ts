@@ -3,7 +3,7 @@
  *
  * Creates a single-asset vault on the ledger. The asset can be XRP,
  * a trust line token, or an MPT. Validation happens at construction;
- * there is no way to construct an invalid tx.
+ * there is no way to construct an invalid tx from the fields it models.
  *
  *   import { vaultCreate } from 'xrpjson';
  *   const tx = vaultCreate({ Account, Asset: IOU_ASSET });

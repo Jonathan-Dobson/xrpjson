@@ -2,7 +2,8 @@
  * Functional VaultDelete factory — frozen-object style.
  *
  * Deletes an existing vault ledger entry. Validation happens at
- * construction; there is no way to construct an invalid tx.
+ * construction; there is no way to construct an invalid tx from the fields it
+ * models.
  *
  *   import { vaultDelete } from 'xrpjson';
  *   const tx = vaultDelete({ Account, VaultID });

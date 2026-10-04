@@ -3,7 +3,7 @@
  *
  * Deletes an existing `LoanBroker` ledger entry. Only the owner of the
  * `LoanBroker` can delete it. Validation happens at construction; there
- * is no way to construct an invalid tx.
+ * is no way to construct an invalid tx from the fields it models.
  *
  *   import { loanBrokerDelete } from 'xrpjson';
  *   const tx = loanBrokerDelete({ Account, LoanBrokerID });

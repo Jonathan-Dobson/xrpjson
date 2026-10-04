@@ -5,7 +5,8 @@
  * a held escrow to the recipient. The original `EscrowCreate` may have
  * specified a `Condition` (in which case the matching `Fulfillment` is
  * required to unlock the funds) and/or a `FinishAfter` time. Validation
- * happens at construction; there is no way to construct an invalid tx.
+ * happens at construction; there is no way to construct an invalid tx from the
+ * fields it models.
  *
  *   import { escrowFinish } from 'xrpjson';
  *   const tx = escrowFinish({

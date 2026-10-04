@@ -3,7 +3,7 @@
  *
  * Creates, modifies, or deletes a trust line linking `Account` to a peer
  * for an issued (IOU) currency. Validation happens at construction;
- * there is no way to construct an invalid tx.
+ * there is no way to construct an invalid tx from the fields it models.
  *
  *   import { trustSet } from 'xrpjson';
  *   const tx = trustSet({

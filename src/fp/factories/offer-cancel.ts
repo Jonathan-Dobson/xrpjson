@@ -2,7 +2,8 @@
  * Functional OfferCancel factory — frozen-object style.
  *
  * Cancels an existing offer on the DEX. Validation happens at
- * construction; there is no way to construct an invalid tx.
+ * construction; there is no way to construct an invalid tx from the fields it
+ * models.
  *
  *   import { offerCancel } from 'xrpjson';
  *   const tx = offerCancel({ Account, OfferSequence: 6 });

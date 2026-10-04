@@ -2,7 +2,8 @@
  * Functional LoanPay factory — frozen-object style.
  *
  * The Borrower submits a `LoanPay` to make a payment on a Loan. Validation
- * happens at construction; there is no way to construct an invalid tx.
+ * happens at construction; there is no way to construct an invalid tx from the
+ * fields it models.
  *
  *   import { loanPay } from 'xrpjson';
  *   const tx = loanPay({ Account, LoanID, Amount: '1000000' });

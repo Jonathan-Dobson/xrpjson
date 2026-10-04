@@ -4,7 +4,8 @@
  * Withdraws assets from a vault in exchange for shares. The `Amount` field
  * can specify either an asset amount (vault burns the necessary shares) or
  * a share amount (vault pays out the corresponding assets). Validation
- * happens at construction; there is no way to construct an invalid tx.
+ * happens at construction; there is no way to construct an invalid tx from the
+ * fields it models.
  *
  *   import { vaultWithdraw } from 'xrpjson';
  *   const tx = vaultWithdraw({ Account, VaultID, Amount });
