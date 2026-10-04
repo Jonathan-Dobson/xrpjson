@@ -3,7 +3,7 @@
  *
  * Assigns, changes, or removes the regular key pair associated with the
  * sending account. Validation happens at construction; there is no way
- * to construct an invalid tx.
+ * to construct an invalid tx from the fields it models.
  *
  *   import { setRegularKey } from 'xrpjson';
  *   const tx = setRegularKey({ Account, RegularKey });

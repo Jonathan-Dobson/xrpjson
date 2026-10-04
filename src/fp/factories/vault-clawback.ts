@@ -8,7 +8,7 @@
  * shares the Holder owns.
  *
  * Validation happens at construction; there is no way to construct an
- * invalid tx. Compare to the class-based equivalent, which exposes a
+ * invalid tx from the fields it models. Compare to the class-based equivalent, which exposes a
  * separate `.validate()` method you must remember to call.
  *
  *   import { vaultClawback } from 'xrpjson';

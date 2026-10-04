@@ -3,7 +3,7 @@
  *
  * Accepts a credential that was provisionally issued to the Account.
  * Validation happens at construction; there is no way to construct an
- * invalid tx.
+ * invalid tx from the fields it models.
  *
  *   import { credentialAccept } from 'xrpjson';
  *   const tx = credentialAccept({

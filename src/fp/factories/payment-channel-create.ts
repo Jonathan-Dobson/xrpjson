@@ -6,7 +6,7 @@
  * Destination becomes the recipient that can claim against it.
  *
  * Validation happens at construction; there is no way to construct an
- * invalid tx.
+ * invalid tx from the fields it models.
  *
  *   import { paymentChannelCreate } from 'xrpjson';
  *   const tx = paymentChannelCreate({ Account, Amount, Destination, SettleDelay, PublicKey });

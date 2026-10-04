@@ -6,7 +6,7 @@
  * maximum, cover rates). Creation and modification share one transaction
  * type; the presence of `LoanBrokerID` distinguishes them ("update" vs
  * "create"). Validation happens at construction; there is no way to
- * construct an invalid tx.
+ * construct an invalid tx from the fields it models.
  *
  *   import { loanBrokerSet } from 'xrpjson';
  *   // Create

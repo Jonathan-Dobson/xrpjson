@@ -7,7 +7,7 @@
  * equivalent to creating a new bridge. The transaction is sent by the
  * door account and requires witness signatures (collected outside the
  * ledger). Validation happens at construction; there is no way to
- * construct an invalid tx.
+ * construct an invalid tx from the fields it models.
  *
  *   import { xchainModifyBridge } from 'xrpjson';
  *   const tx = xchainModifyBridge({

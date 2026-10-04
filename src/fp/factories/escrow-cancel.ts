@@ -5,7 +5,7 @@
  * sender. The escrow must have a `CancelAfter` time that has already
  * passed; that runtime check is enforced by rippled, not the factory.
  * Validation here happens at construction; there is no way to construct
- * an invalid tx.
+ * an invalid tx from the fields it models.
  *
  *   import { escrowCancel } from 'xrpjson';
  *   const tx = escrowCancel({ Account, Owner, OfferSequence: 7 });

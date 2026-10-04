@@ -7,7 +7,7 @@
  * the AMM pool are clawed back.
  *
  * Validation happens at construction; there is no way to construct an
- * invalid tx.
+ * invalid tx from the fields it models.
  *
  *   import { ammClawback } from 'xrpjson';
  *   const tx = ammClawback({

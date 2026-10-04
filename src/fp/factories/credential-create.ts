@@ -4,7 +4,7 @@
  * Provisionally issues a credential to a `Subject` account. The credential
  * is not valid until the subject accepts it with a `CredentialAccept`.
  * Validation happens at construction; there is no way to construct an
- * invalid tx.
+ * invalid tx from the fields it models.
  *
  *   import { credentialCreate } from 'xrpjson';
  *   const tx = credentialCreate({

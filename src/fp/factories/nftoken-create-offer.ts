@@ -4,7 +4,7 @@
  * Creates either a buy offer (Account does NOT own the NFToken) or a
  * sell offer (Account owns the NFToken) for a non-fungible token.
  * Validation happens at construction; there is no way to construct
- * an invalid tx.
+ * an invalid tx from the fields it models.
  *
  *   import { nftokenCreateOffer } from 'xrpjson';
  *   // Sell offer (owner must be Account implicitly):

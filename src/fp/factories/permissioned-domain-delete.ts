@@ -4,7 +4,7 @@
  * Deletes a `PermissionedDomain` ledger entry. Only the domain owner can
  * submit this transaction (the ledger enforces this; not locally checkable
  * here). Validation happens at construction; there is no way to construct
- * an invalid tx.
+ * an invalid tx from the fields it models.
  *
  *   import { permissionedDomainDelete } from 'xrpjson';
  *   const tx = permissionedDomainDelete({ Account, DomainID });

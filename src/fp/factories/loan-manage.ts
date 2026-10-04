@@ -3,7 +3,7 @@
  *
  * Modifies an existing `Loan` ledger entry (default, impairment, or
  * unimpairment). Validation happens at construction; there is no way to
- * construct an invalid tx.
+ * construct an invalid tx from the fields it models.
  *
  *   import { loanManage } from 'xrpjson';
  *   const tx = loanManage({ Account, LoanID });

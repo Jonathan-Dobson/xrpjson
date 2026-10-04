@@ -7,7 +7,7 @@
  * just verifies the field-level shape).
  *
  * Validation happens at construction; there is no way to construct an
- * invalid tx.
+ * invalid tx from the fields it models.
  *
  *   import { paymentChannelFund } from 'xrpjson';
  *   const tx = paymentChannelFund({ Account, Channel, Amount });

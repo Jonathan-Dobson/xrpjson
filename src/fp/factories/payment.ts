@@ -16,7 +16,7 @@
  *   const tx2 = tx.with({ Fee: '12', Sequence: 42 });
  *
  * The functional version validates at construction. There is no way to
- * build an invalid tx — `with()` re-runs the factory, so overrides are
+ * build an invalid tx from the fields it models — `with()` re-runs the factory, so overrides are
  * re-validated too.
  *
  * Tree-shaking: a consumer that only imports `payment` should pull in

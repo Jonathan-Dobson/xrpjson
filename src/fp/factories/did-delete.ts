@@ -7,7 +7,7 @@
  * rejects the deletion with `tecNO_ENTRY` if the account does not own a
  * DID, but that is a runtime check (not locally checkable here).
  * Validation happens at construction; there is no way to construct an
- * invalid tx.
+ * invalid tx from the fields it models.
  *
  *   import { didDelete } from 'xrpjson';
  *   const tx = didDelete({ Account });

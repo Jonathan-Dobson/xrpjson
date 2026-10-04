@@ -3,7 +3,7 @@
  *
  * Locks assets on the locking chain to start a cross-chain transfer.
  * Validation happens at construction; there is no way to construct an
- * invalid tx.
+ * invalid tx from the fields it models.
  *
  *   import { xchainCommit } from 'xrpjson';
  *   const tx = xchainCommit({

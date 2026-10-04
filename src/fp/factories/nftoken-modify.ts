@@ -4,7 +4,7 @@
  * Modifies an existing dynamic NFToken (one minted with the `tfMutable`
  * flag enabled, per XLS-46). Currently the only mutable field is `URI`.
  * Validation happens at construction; there is no way to construct an
- * invalid tx.
+ * invalid tx from the fields it models.
  *
  *   import { nftokenModify } from 'xrpjson';
  *   const tx = nftokenModify({ Account, NFTokenID });

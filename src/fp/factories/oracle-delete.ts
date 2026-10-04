@@ -3,7 +3,7 @@
  *
  * Deletes a `PriceOracle` ledger entry. Only the owner of the oracle can
  * send this transaction. Validation happens at construction; there is no
- * way to construct an invalid tx.
+ * way to construct an invalid tx from the fields it models.
  *
  *   import { oracleDelete } from 'xrpjson';
  *   const tx = oracleDelete({ Account, OracleDocumentID: 34 });

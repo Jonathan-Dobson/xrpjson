@@ -3,7 +3,7 @@
  *
  * Updates `Data`, `AssetsMaximum`, and/or `DomainID` on a vault identified
  * by `VaultID`. Validation happens at construction; there is no way to
- * construct an invalid tx.
+ * construct an invalid tx from the fields it models.
  *
  *   import { vaultSet } from 'xrpjson';
  *   const tx = vaultSet({ Account, VaultID, Data: '5661756C74' });

@@ -5,7 +5,7 @@
  * sending any money. The source or the destination of the Check can
  * cancel it at any time; once expired, any address can cancel it.
  * Validation happens at construction; there is no way to construct
- * an invalid tx.
+ * an invalid tx from the fields it models.
  *
  *   import { checkCancel } from 'xrpjson';
  *   const tx = checkCancel({ Account, CheckID });

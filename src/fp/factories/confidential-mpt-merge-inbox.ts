@@ -8,7 +8,7 @@
  * stable spending balance.
  *
  * Validation happens at construction; there is no way to construct
- * an invalid tx. Compare to the class-based equivalent, which exposes
+ * an invalid tx from the fields it models. Compare to the class-based equivalent, which exposes
  * a separate `.validate()` method you must remember to call.
  *
  *   import { confidentialMptMergeInbox } from 'xrpjson';

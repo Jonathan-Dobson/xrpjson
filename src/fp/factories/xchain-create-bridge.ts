@@ -6,7 +6,7 @@
  * the door account. The same transaction must be submitted by the
  * corresponding door account on the other chain to complete bridge
  * setup. Validation happens at construction; there is no way to
- * construct an invalid tx.
+ * construct an invalid tx from the fields it models.
  *
  *   import { xchainCreateBridge } from 'xrpjson';
  *   const tx = xchainCreateBridge({

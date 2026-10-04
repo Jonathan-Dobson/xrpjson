@@ -3,7 +3,7 @@
  *
  * Adds liquidity to an AMM instance and receives LP tokens in exchange.
  * Validation happens at construction; there is no way to construct an
- * invalid tx.
+ * invalid tx from the fields it models.
  *
  *   import { ammDeposit } from 'xrpjson';
  *   const tx = ammDeposit({

@@ -19,7 +19,7 @@
  * cannot be used to claw back XRP.").
  *
  * Validation happens at construction; there is no way to construct an
- * invalid tx.
+ * invalid tx from the fields it models.
  *
  *   import { clawback } from 'xrpjson';
  *   // IOU clawback — the holder is encoded inside Amount.issuer:

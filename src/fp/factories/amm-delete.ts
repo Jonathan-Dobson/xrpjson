@@ -7,7 +7,7 @@
  * enforces that the AMM is in an empty (`LPTokens == 0`) state.
  *
  * Validation happens at construction; there is no way to construct an
- * invalid tx.
+ * invalid tx from the fields it models.
  *
  *   import { ammDelete } from 'xrpjson';
  *   const tx = ammDelete({
