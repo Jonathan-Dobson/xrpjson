@@ -56,6 +56,71 @@ input the ledger would take. Ledger-verified on XRPL testnet.
   `xrpl@5.3.0`-backed check for `SponsorshipTransfer`. 10 passed, 0 failed,
   1 skipped. 9 new unit tests here (+2,849 → +2,858).
 
+## [1.3.0] — 2026-10-05
+
+### Fixed
+
+The seven base transaction fields — `Memos`, `SourceTag`,
+`LastLedgerSequence`, `AccountTxnID`, `NetworkID`, `Delegate`,
+`TicketSequence` — were declared in `BaseTransactionFields` and checked by
+`validateBaseTransaction`, but were **invisible to the type system and
+unchecked at construction in most factories**. Both halves are now closed for
+all 79. Tests: 2,948 → 4,023.
+
+- **The seven fields were missing from every props interface.** A caller
+  passing a well-formed `TicketSequence` got a type error; a caller passing
+  a malformed one got no error at all, because the field was not in the type
+  and no validator ran. Every factory now inherits them and calls
+  `validateBaseTransaction` after its own checks, so the field is both
+  accepted and checked.
+
+- **The inheritance the previous conversion used was inert.** The
+  `Omit<BaseTransactionFields, 'TransactionType' | 'Flags'>` in the
+  already-converted factories did not subtract two keys from fourteen.
+  `BaseTransactionFields` ends with `readonly [key: string]: unknown`, which
+  widens `keyof` to `string | number`; since `Omit` is defined in terms of
+  `keyof`, the result collapsed to a bare index signature and discarded every
+  named member. A props interface built that way accepted a **missing
+  `Account`**, accepted misspelled field names, and accepted any value type —
+  it read as correct and enforced nothing. Adds `BasePropsFields`, a
+  key-remapped view that drops the index signature while keeping each named
+  field's exact declared type, and uses it in all 79 props interfaces.
+
+- **58 factories never called the validator.** A prior survey recorded 38/79
+  as already calling it; the true count was 10. The other 28 matched JSDoc
+  prose such as *"inherits `validateBaseTransaction`'s `isString(Account)`
+  check"*. `vaultClawback` was filed as "type done, runtime missing" but had
+  no import and no `extends` clause at all, only a comment mention.
+
+Ordering is load-bearing and covered by tests: the base call sits after each
+factory's own checks, so a specific mistake still yields its specific message
+(`setRegularKey`'s `temBAD_REGKEY` and `ledgerStateFix`'s ≥2,000,000 Special
+Transaction Cost floor both still win over the base backstop).
+
+### Behaviour change
+
+58 factories now **throw** on a malformed base field where they previously
+constructed silently. This is the documented contract finally being enforced
+— the module docstring has always promised *"There is no way to build an
+invalid tx"* — but code that relied on the permissive behaviour will now see
+`ValidationError`. Not a major bump because the old behaviour was the defect,
+and 1.2.0 is the last version that exhibited it.
+
+### Known issue (not addressed here)
+
+`toJSON` serialises **every** enumerable key off the frozen object, so an
+unrecognised prop bypasses all validation and reaches the wire format:
+
+```js
+setRegularKey({ Account, TotallyBogusField: 12345 })
+// → toJSON() includes TotallyBogusField
+```
+
+TypeScript rejects this at compile time; JavaScript does not, and JS is how
+the package is consumed. Tracked separately — see
+[`DIVERGENCES.md`](https://github.com/Jonathan-Dobson/173-xrpjson-testing/blob/main/DIVERGENCES.md)
+in the downstream harness.
+
 ## [1.2.0] — 2026-10-02
 
 ### Fixed
