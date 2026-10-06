@@ -13,6 +13,8 @@ a reader can tell a ledger-facing behaviour change from an internal cleanup.
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-10-07
+
 ### Fixed
 
 A field belonging to a **different transaction type** passed through
