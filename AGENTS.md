@@ -55,6 +55,27 @@ to port 19531, collection `codebase_chunks_xrplt`, HTTP :7800. Do not move this
 project back onto the defaults; if you change a port or collection name here,
 change it in both places or the collision returns.
 
+### Search-index port and collection registry
+
+Three live stacks now share this machine. Claim a **fourth** port for any new
+index; never reuse a row.
+
+| Port | Collection | HTTP | Owner |
+|---:|---|---:|---|
+| 19530 | `codebase_chunks` | 7800 | **this project** |
+| 19531 | `codebase_chunks_xrplt` | 7801 | `128-xrp-tx-builder` |
+| 19532 | `codebase_chunks_rippled` | 7802 | rippled C++ mirror (`~/.mavis/docs.local/rippled/`) |
+
+The rippled stack indexes the XRPL ledger server's own source so protocol
+citations can be verified against real code instead of the web. It is documented
+in the `xrpl-tx-stories` skill, which is where to look before querying it.
+
+`collectionName` has **no environment override** — only `milvusPort`,
+`searchPort`, `ollamaHost` and `embeddingModel` do. A `.codesearchrc.json` in the
+indexed workspace root is the *only* thing separating two indexes. That file is
+found by walking up from the working directory, so always run from the intended
+workspace or you will silently pick up another project's config.
+
 ### `.search-index-state.json` is local-only
 
 It is gitignored on **both** branches and never committed. It records what the
