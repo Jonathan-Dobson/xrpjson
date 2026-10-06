@@ -13,6 +13,13 @@ a reader can tell a ledger-facing behaviour change from an internal cleanup.
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-10-07
+
+Carries the fix below on top of **1.4.0**. Note that 1.4.0 was never published to
+npm: it was released as a commit and a `package.json` bump, but no GitHub Release
+was created, so `npm-publish.yml` never fired. npm's `latest` moved 1.3.0 → 1.4.1
+with 1.4.0's fix included.
+
 ### Fixed
 
 `accountSet` accepted `NFTokenBrokerFee`, which the protocol does not put on
@@ -24,6 +31,21 @@ the field-ownership index no longer lists `AccountSet` as an owner.
 Found by cross-checking every factory's declared fields against rippled's own
 `transactions.macro` and `sfields.macro` plus its `TxFormats::getCommonFields()`
 common-field injection. Tests: 4,084 → 4,085.
+
+**Upgrade note — this is a compile-time break.** `NFTokenBrokerFee` is gone from
+`AccountSetProps`, so TypeScript now rejects it at build time rather than the
+ledger rejecting it at submit time:
+
+```
+error TS2353: Object literal may only specify known properties,
+and 'NFTokenBrokerFee' does not exist in type 'AccountSetProps'.
+```
+
+Anyone who set that field must delete the property and move it to an
+`nftokenAcceptOffer` call. The runtime behaviour change is a strict improvement
+— the error now arrives at construction with the owning transaction named in the
+message, instead of as an opaque codec rejection — but it is still a break, which
+is why this is a patch on a surface that narrowed rather than a routine bump.
 
 ## [1.4.0] — 2026-10-07
 
