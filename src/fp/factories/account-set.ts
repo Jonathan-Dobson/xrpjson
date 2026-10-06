@@ -3,6 +3,32 @@
  *
  * Companion prototype to payment.ts. Validates at construction, returns
  * a frozen object with bound validate/toJSON/with methods.
+ *
+ * ## Divergences
+ *
+ * - **`NFTokenBrokerFee` is deliberately NOT accepted here.** It is a real
+ *   protocol field (`sfNFTokenBrokerFee`, AMOUNT, field code 19) but
+ *   rippled accepts it on **NFTokenAcceptOffer only** — not on AccountSet,
+ *   and not as an AccountRoot ledger field either.
+ *   Source: rippled `include/xrpl/protocol/detail/transactions.macro:335`
+ *   (the sole `{sfNFTokenBrokerFee, SoeOptional}` entry, in the
+ *   `ttNFTOKEN_ACCEPT_OFFER` block) and the `ttACCOUNT_SET` block at
+ *   line 93ff, which lists only EmailHash, WalletLocator, WalletSize,
+ *   MessageKey, Domain, TransferRate, SetFlag, ClearFlag, TickSize and
+ *   NFTokenMinter.
+ *   Source: rippled `src/libxrpl/tx/transactors/account/AccountSet.cpp` —
+ *   preflight reads sfSetFlag, sfClearFlag, sfTransferRate, sfTickSize,
+ *   sfMessageKey, sfDomain, sfNFTokenMinter; no BrokerFee reference.
+ *   Source: rippled `include/xrpl/protocol/detail/ledger_entries.macro` —
+ *   no BrokerFee on ACCOUNT_ROOT, so it cannot be a per-account setting.
+ *   Source: xrpl.js `packages/ripple-binary-codec/src/enums/definitions.json`
+ *   `TRANSACTION_FORMATS` — `AccountSet` lists ten fields and
+ *   `NFTokenBrokerFee` is absent; only `NFTokenAcceptOffer` carries it.
+ *   Sending it on AccountSet makes `STObject::applyTemplate` throw
+ *   `FieldErr: "Field 'NFTokenBrokerFee' found in disallowed location."`
+ *   (`src/libxrpl/protocol/STObject.cpp:194-199`), because the field's
+ *   code is ≤ 256 and therefore not discardable
+ *   (`include/xrpl/protocol/SField.h:242-246`).
  */
 import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isNumber, isString } from '../../validation/helpers.js';
@@ -33,8 +59,6 @@ export interface AccountSetProps extends Omit<
   EmailHash?: string | undefined;
   /** Message key for encrypted messaging. */
   MessageKey?: string | undefined;
-  /** NFT collection fee (0-50,000). */
-  NFTokenBrokerFee?: number | undefined;
   /** Flag to enable on the account. */
   SetFlag?: number | undefined;
   /** Transfer rate for issued currencies (drops per billion). */

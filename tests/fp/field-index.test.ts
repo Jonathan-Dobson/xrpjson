@@ -122,16 +122,29 @@ describe('field ownership index (Bug #11)', () => {
 
   describe('the merge may only widen acceptance', () => {
     it('every field a factory declares still constructs on that factory', () => {
-      // NFTokenBrokerFee is declared on AccountSet here, but codec 2.11.0
-      // places it only on NFTokenAcceptOffer. A protocol-only index would
-      // reject it; the union must not.
-      const tx = accountSet({ Account: ACCOUNT, NFTokenBrokerFee: 1000 });
-      expect(tx.toJSON().NFTokenBrokerFee).toBe(1000);
+      // Regression guard (2026-10-07): AccountSet used to declare
+      // NFTokenBrokerFee, which the protocol puts ONLY on NFTokenAcceptOffer.
+      // The union index then had to list AccountSet as an owner, so the index
+      // itself encoded the error. WalletLocator is the honest version of this
+      // case: a protocol-only field on the one transaction that owns it.
+      const tx = accountSet({ Account: ACCOUNT, WalletSize: 15 });
+      expect(tx.toJSON().WalletSize).toBe(15);
     });
 
-    it('accepts that same field on NFTokenAcceptOffer, where the protocol puts it', () => {
+    it('rejects a field the protocol does not put on AccountSet', () => {
+      // sfNFTokenBrokerFee is a real SField (AMOUNT, code 19) but is not in
+      // rippled's ttACCOUNT_SET template, so STObject::applyTemplate throws
+      // "found in disallowed location". Verified against rippled
+      // transactions.macro:335 (sole entry, in ttNFTOKEN_ACCEPT_OFFER) and
+      // xrpl.js TRANSACTION_FORMATS.
+      expect(() =>
+        accountSet({ Account: ACCOUNT, NFTokenBrokerFee: 1000 } as never),
+      ).toThrow(/belongs to: .*NFTokenAcceptOffer/);
+    });
+
+    it('still accepts that field on NFTokenAcceptOffer, where the protocol puts it', () => {
       const owners = FIELD_OWNERS.NFTokenBrokerFee;
-      expect(owners.has('AccountSet')).toBe(true);
+      expect(owners.has('AccountSet')).toBe(false);
       expect(owners.has('NFTokenAcceptOffer')).toBe(true);
     });
   });

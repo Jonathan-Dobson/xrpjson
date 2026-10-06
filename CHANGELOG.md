@@ -13,6 +13,18 @@ a reader can tell a ledger-facing behaviour change from an internal cleanup.
 
 ## [Unreleased]
 
+### Fixed
+
+`accountSet` accepted `NFTokenBrokerFee`, which the protocol does not put on
+`AccountSet`. Sending it reached the ledger and failed there with
+`Field 'NFTokenBrokerFee' found in disallowed location.` The field now raises at
+construction, naming `NFTokenAcceptOffer` as the transaction that owns it, and
+the field-ownership index no longer lists `AccountSet` as an owner.
+
+Found by cross-checking every factory's declared fields against rippled's own
+`transactions.macro` and `sfields.macro` plus its `TxFormats::getCommonFields()`
+common-field injection. Tests: 4,084 → 4,085.
+
 ## [1.4.0] — 2026-10-07
 
 ### Fixed

@@ -150,7 +150,7 @@ export const FIELD_OWNERS = {
   MPTAmount: new Set(['ConfidentialMPTClawback', 'ConfidentialMPTConvert', 'ConfidentialMPTConvertBack'] as const),
   MPTokenIssuanceID: new Set(['ConfidentialMPTClawback', 'ConfidentialMPTConvert', 'ConfidentialMPTConvertBack', 'ConfidentialMPTMergeInbox', 'ConfidentialMPTSend', 'MPTokenAuthorize', 'MPTokenIssuanceDestroy', 'MPTokenIssuanceSet'] as const),
   MPTokenMetadata: new Set(['MPTokenIssuanceCreate', 'MPTokenIssuanceSet', 'VaultCreate'] as const),
-  NFTokenBrokerFee: new Set(['AccountSet', 'NFTokenAcceptOffer'] as const),
+  NFTokenBrokerFee: new Set(['NFTokenAcceptOffer'] as const),
   NFTokenBuyOffer: new Set(['NFTokenAcceptOffer'] as const),
   NFTokenID: new Set(['NFTokenBurn', 'NFTokenCreateOffer', 'NFTokenModify'] as const),
   NFTokenMinter: new Set(['AccountSet'] as const),

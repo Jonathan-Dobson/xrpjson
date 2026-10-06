@@ -128,7 +128,7 @@ construct thousands of transactions per second.
 
 ## Verification discipline
 
-Every factory is verified against **three canonical sources** before
+Every factory is verified against **four canonical sources** before
 landing:
 
 1. **xrpl.js 5.3.0** at `xrpl.js` — the canonical
@@ -140,9 +140,20 @@ landing:
 3. **XLS specs** at `xrpl-standards` — the
    authoritative spec text. We read the amendment's field table,
    preclaim rules, and cross-field invariants.
+4. **rippled source** at `rippled` — the ledger server itself, indexed for
+   semantic search. `protocol/detail/transactions.macro` is the authoritative
+   list of fields each transaction type accepts, `sfields.macro` maps every
+   field to its serialized type and code, and `TxFormats::getCommonFields()`
+   shows which fields are injected into *every* transaction. This is the only
+   source that reveals what actually gets rejected at submit time.
 
-When the three sources disagree, the XLS spec wins. The factory
-documents the divergence with citation.
+When the sources disagree, the XLS spec wins. The factory documents the
+divergence with citation.
+
+The rippled cross-check is a whole-surface sweep, not a spot check: every
+factory's declared field set is diffed against the macro templates. It is how
+`AccountSet` was found declaring `NFTokenBrokerFee`, which the protocol accepts
+only on `NFTokenAcceptOffer`.
 
 ## Out of scope
 
