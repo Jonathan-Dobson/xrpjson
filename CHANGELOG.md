@@ -15,6 +15,55 @@ a reader can tell a ledger-facing behaviour change from an internal cleanup.
 
 ### Fixed
 
+A field belonging to a **different transaction type** passed through
+construction untouched and reached the serialised transaction, where the codec
+refused it with `Field 'X' found in disallowed location.` — an error naming the
+field but not the mistake. Found by
+[173-xrpjson-testing](https://github.com/Jonathan-Dobson/173-xrpjson-testing)
+Bug #11. Tests: 4,023 → 4,084.
+
+- **A real field on the wrong transaction was accepted.**
+  `setRegularKey({ Account, DestinationTag: 42 })` constructed and reached
+  `toJSON()`. Nothing at the call site looks wrong — `DestinationTag` is a
+  genuine XRPL field, valid on `Payment` — which made this the worse of the two
+  shapes. `buildFrozenTx` now rejects it and names the transactions that do
+  accept the field.
+
+- **The check runs at the single choke point** every factory and every
+  `.with()` override already passes through, so all 79 factories are covered
+  and the throw cannot be bypassed by deriving a transaction with `.with()`.
+
+- **The index is generated from two sources, not one.** A
+  `fieldName -> Set<TransactionType>` table is built by
+  `scripts/gen-field-index.mjs` from this library's 79 props interfaces **and**
+  from the protocol's own `TRANSACTION_FORMATS` table
+  (`ripple-binary-codec`, a devDependency). Either alone is wrong: an
+  interfaces-only index cannot catch a misplacement of a field the library
+  does not model, and a protocol-only index would reject `NFTokenBrokerFee` on
+  `AccountSet`, which this library supports and codec 2.11.0 does not. The
+  union can only ever **widen** a field's accepted-type set, so no call that
+  works today can start failing. It adds 4 fields the library does not model
+  (`BookDirectory`, `NFTokenMinter`, `WalletLocator`, `WalletSize`), which are
+  now caught on the wrong transaction.
+
+- **Forward-compatibility is preserved deliberately.** A field with no index
+  entry is one the library does not model yet, and still passes —
+  `BaseTransactionFields` carries `[key: string]: unknown`
+  (`src/types/base.ts:100`) for exactly that case. A strict per-type key set
+  would have converted that hatch into a throw. The rule is *reject only when
+  known and absent for this transaction*, never *reject when unrecognised*.
+
+- **A completely unrecognised field still passes**, as before. A typo like
+  `TotallyBogusField` is indistinguishable from a future amendment field to a
+  library with a closed global field list; catching it would require an
+  allowlist and would break the hatch above.
+
+- **The generated table cannot silently drift.** `field-index.assert.ts` makes
+  the build fail — naming the offending field — when a props interface gains a
+  field the index does not carry, when the index names a transaction this
+  library does not implement, or when it carries a key that is neither
+  declared nor protocol-derived. Each was verified by negative probe.
+
 Three **over-strict** flag validations, all found by
 [`docs/audit/2026-10-02-flag-contradiction-audit.md`](./docs/audit/2026-10-02-flag-contradiction-audit.md).
 Each refused a transaction rippled accepts — the library could not build

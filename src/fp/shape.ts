@@ -27,6 +27,7 @@
  *      Payment factory code, with no AMM/Vault/Loan code?
  */
 import { ValidationError } from '../errors.js';
+import { assertKnownFields } from './field-index.js';
 
 /**
  * Every frozen tx has these three methods. The factory binds them
@@ -44,34 +45,30 @@ export interface FrozenTxMethods<TProps extends object, TTx> {
  * AFTER running its own validation, so any object passed in is assumed
  * already ledger-compliant.
  *
- * ## Known limitation — unrecognised fields pass through
+ * ## Field ownership
  *
- * Both this function and every per-factory `toJSON` carry **every** key on
- * the object, not just the ones a factory models. A prop the factory does not
- * recognise is therefore neither rejected nor filtered: it reaches the
- * serialised transaction, where the codec refuses it with
- * `Field 'X' found in disallowed location.`
- *
- * The two shapes that matter:
+ * Both this function and every per-factory `toJSON` carry **every** key on the
+ * object, not just the ones a factory models, so a prop the factory does not
+ * recognise would otherwise reach the serialised transaction and be refused
+ * there by the codec with `Field 'X' found in disallowed location.` — an error
+ * that names the field but not the mistake.
  *
  * ```js
- * setRegularKey({ Account, TotallyBogusField: 1 })  // a typo — nothing to catch it
+ * setRegularKey({ Account, TotallyBogusField: 1 })  // a typo
  * setRegularKey({ Account, DestinationTag: 42 })    // a REAL field, wrong type
  * ```
  *
  * The second is the worse one, because nothing at the call site looks wrong.
+ * `assertKnownFields` closes both here, at the one choke point every factory
+ * and every `.with()` override passes through. It rejects a field only when it
+ * is KNOWN and absent for this transaction type — see `src/fp/field-index.ts`
+ * for how the ownership table is built and why that rule is not an allowlist.
  *
- * TypeScript rejects both at compile time — the props types have no index
- * signature since the `BasePropsFields` rework — so the exposure is JavaScript
- * callers only. A strict per-type key set would close it, but that is a
- * forward-compatibility tradeoff rather than a mechanical fix: `BaseTransactionFields`
- * deliberately carries `[key: string]: unknown` for forward-compatibility
- * (`src/types/base.ts:100`), and a closed set would reject a genuinely-new
- * amendment field the library has not modelled yet.
- *
- * A design that preserves forward-compatibility — a `fieldName -> Set<TransactionType>`
- * index, rejecting a key only when it is known AND absent for this type — is
- * recorded in DIVERGENCES.md Bug #11, in 173-xrpjson-testing.
+ * A field with no entry in the index is one this library does not model yet,
+ * and still passes: `BaseTransactionFields` deliberately carries
+ * `[key: string]: unknown` for forward-compatibility (`src/types/base.ts:100`),
+ * and a genuinely-new amendment field must not be rejected just because the
+ * library has not caught up with it.
  *
  * @param txType     - The literal transaction type string ('Payment', ...)
  * @param fields     - The validated field set (frozen at this layer too)
@@ -82,6 +79,9 @@ export function buildFrozenTx<TProps extends object, TTx>(
   fields: Readonly<TProps>,
   methods: FrozenTxMethods<TProps, TTx>,
 ): TTx {
+  for (const field of Object.keys(fields)) {
+    assertKnownFields(txType, field);
+  }
   const data = Object.freeze({ TransactionType: txType, ...fields });
   // TypeScript can't see that the spread of `data` (which IS TProps-shaped
   // minus TransactionType) plus the methods (which carry validate/toJSON/with)
