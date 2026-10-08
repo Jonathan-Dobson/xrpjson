@@ -13,6 +13,39 @@ a reader can tell a ledger-facing behaviour change from an internal cleanup.
 
 ## [Unreleased]
 
+## [1.4.2] — 2026-10-09
+
+### Documentation
+
+Added a **Using it in a Node REPL** section. The package is ESM-only, and the
+failure modes a REPL user hits look like a broken install rather than expected
+behaviour — four consecutive attempts in a first session each read as a
+failure when only one was a real mistake. Documented:
+
+- `require()` is unavailable, and it fails with
+  `ERR_PACKAGE_PATH_NOT_EXPORTED: No "exports" main defined` rather than the
+  familiar `ERR_REQUIRE_ESM`, because the exports map declares only an `import`
+  condition.
+- **Static `import` is rejected by the interactive REPL** ("Cannot use import
+  statement inside the Node.js REPL"). `await import()` is the working form.
+  The restriction is the REPL's, not the package's.
+- The `undefined` echoed after `const {…} = await import(…)` is the completion
+  value of the declaration, not a failed import.
+- `payment()` with no argument throws a raw `TypeError` before validation runs,
+  since `props` is `undefined` and the first `require(props.X, …)` has nothing
+  to read.
+- Required fields are reported one at a time, so a session feels like
+  whack-a-mole; the section gives the `factory.toString()` trick that lists
+  them at once.
+- The four-entry import table (`xrpjson`, `/flags`, `/errors`, `/validation`) and
+  a note that deep paths are blocked by the closed `exports` map.
+
+Sample output is copied verbatim from a real pty-backed REPL session, including
+indentation and trailing semicolons. A piped `node` invocation is not the REPL
+and accepts syntax the REPL rejects — verifying this way matters.
+
+No code changes.
+
 ## [1.4.1] — 2026-10-07
 
 Carries the fix below on top of **1.4.0**. Note that 1.4.0 was never published to
