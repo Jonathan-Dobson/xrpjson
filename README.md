@@ -126,6 +126,107 @@ await submit(signed);
 The factory is pure — no global state, no I/O, no side effects. You can
 construct thousands of transactions per second.
 
+## Using it in a Node REPL
+
+`xrpjson` is ESM-only. `require()` does not work and the error is misleading —
+it reports a missing export rather than the usual "must use import":
+
+```
+Error [ERR_PACKAGE_PATH_NOT_EXPORTED]: No "exports" main defined in
+  .../node_modules/xrpjson/package.json
+```
+
+That's expected. Use dynamic `import`:
+
+```console
+$ npm i xrpjson
+$ node
+> const { payment } = await import('xrpjson');
+undefined
+> payment({ Account: 'rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh',
+...         Destination: 'rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe',
+...         Amount: '1000000' }).toJSON()
+{
+  TransactionType: 'Payment',
+  Account: 'rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh',
+  Destination: 'rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe',
+  Amount: '1000000'
+}
+```
+
+A **static** `import { payment } from 'xrpjson'` does *not* work in the
+interactive REPL, even on Node 20+:
+
+```
+Uncaught:
+SyntaxError: Cannot use import statement inside the Node.js REPL,
+alternatively use dynamic import: const { payment } = await import("xrpjson");
+```
+
+That restriction is the REPL's, not the package's — the same `import` statement
+is fine in a `.mjs` file or under `node --input-type=module`.
+
+### Three things that look like bugs and aren't
+
+**`undefined` after a `const` declaration.** The REPL echoes the completion
+value of each expression, and `const x = …` evaluates to `undefined`. Seeing
+`undefined` printed means the import worked, not that it failed — and any REPL
+`import` that did fail would have thrown instead.
+
+**`SyntaxError: missing ) after argument list`.** You typed the object's
+contents without the braces. `payment(Account:'')` is a function call whose
+argument is a bare identifier followed by a string; `payment({Account:''})` is
+what you meant. The REPL is parsing correctly.
+
+**`Cannot read properties of undefined (reading 'Account')`.** You called
+`payment()` with no argument, so `props` is `undefined` and the first property
+access throws a raw `TypeError` before any of our validation runs. Any
+`require(props.X, …)` check needs a props object to read from.
+
+### Discovering what a factory requires
+
+Every factory reports missing fields one at a time, in declaration order, which
+is a slow way to learn the required set. Read it off the function instead:
+
+```js
+> payment.toString().split('\n').filter(l => l.includes('require('))
+[
+  "    require(props.Account, 'Payment: missing or invalid Account', isAccount);",
+  "    require(props.Amount, 'Payment: missing or invalid Amount', isAmount);",
+  "    require(props.Destination, 'Payment: missing or invalid Destination', isAccount);"
+]
+```
+
+Those three are required; everything else is optional. The `.d.ts` shipped with
+the package carries the same information with types, which is the better route
+if you have an editor attached.
+
+### Import forms
+
+The package's `exports` map is a closed set — deep paths like
+`xrpjson/dist/fp/index.js` throw `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
+| Import | Gives you |
+|---|---|
+| `xrpjson` | the 79 transaction factories |
+| `xrpjson/flags` | `AccountSetTfFlags`, `AccountSetAsfFlags`, `PaymentFlags`, … |
+| `xrpjson/errors` | `ValidationError` |
+| `xrpjson/validation` | `isAccount`, `isAmount`, and the other predicates |
+
+For one-off experiments prefer a script over the REPL, so validation errors
+don't arrive wrapped in REPL stack noise:
+
+```bash
+node --input-type=module -e "import { payment } from 'xrpjson'; console.log(payment({ /* … */ }).toJSON())"
+```
+
+### A REPL caveat on `toJSON()`
+
+It strips `undefined` values, so optional fields you left unset simply don't
+appear in the output. That's usually what you want, but it means inspecting a
+transaction won't tell you which optional fields *exist* — check the type when
+auditing.
+
 ## Verification discipline
 
 Every factory is verified against **four canonical sources** before
