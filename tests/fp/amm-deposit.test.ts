@@ -14,11 +14,15 @@
  *           xrpl.js lines 114–118.
  *        c. Amount / Amount2 / EPrice, if present, must be a valid Amount.
  *           xrpl.js lines 120–130.
- *        d. Amount2 and EPrice require Amount.
- *           xrpl.js lines 104–107.
- *        e. Must set at least LPTokenOut or Amount.
- *           xrpl.js lines 108–112.
- *        f. Flags must set exactly one AMM-deposit mode flag.
+ *        d. The per-deposit-mode field set. rippled's
+ *           `AMMDeposit::preflight` fixes which of Amount, Amount2, EPrice,
+ *           LPTokenOut and TradingFee may accompany each mode; the factory
+ *           enforces the whole matrix, which subsumes xrpl.js's weaker
+ *           generic subset ("Amount with Amount2", "Amount with EPrice",
+ *           "at least LPTokenOut or Amount"). See the "deposit-mode field
+ *           matrix" block below and rippled
+ *           `src/libxrpl/tx/transactors/dex/AMMDeposit.cpp:66–112`.
+ *        e. Flags must set exactly one AMM-deposit mode flag.
  *           xrpl.org `ammdeposit.md` line 129. The xrpl.js class API has
  *           no flag validation at all.
  *   4. Frozen-shape contract (mutation throws, .with() returns new frozen
@@ -50,6 +54,99 @@ function make(extras: Record<string, unknown> = {}) {
     ...extras,
   });
 }
+
+/**
+ * Builds a deposit from scratch, with no default `Amount`.
+ *
+ * The default in `make()` above is wrong for the per-mode matrix: rippled
+ * gives each mode its own required fields, and tfLPToken requires Amount
+ * and Amount2 to be present *together or not at all* — so a default
+ * Amount would make every tfLPToken case invalid for the wrong reason.
+ */
+function makeMode(flag: number, fields: Record<string, unknown> = {}) {
+  return ammDeposit({
+    Account: LP,
+    Asset: { currency: 'XRP' },
+    Asset2: { currency: 'ETH', issuer: ETH_ISSUER },
+    Flags: flag,
+    ...fields,
+  });
+}
+
+/**
+ * The minimal valid field set for each deposit mode, transcribed from
+ * rippled `AMMDeposit::preflight`
+ * (`src/libxrpl/tx/transactors/dex/AMMDeposit.cpp:66–112`):
+ *
+ *   tfLPToken         — LPTokenOut, [Amount, Amount2]   (both or neither)
+ *   tfSingleAsset     — Amount, [LPTokenOut]
+ *   tfTwoAsset        — Amount, Amount2, [LPTokenOut]
+ *   tfOneAssetLPToken — Amount and LPTokenOut
+ *   tfLimitLPToken    — Amount and EPrice
+ *   tfTwoAssetIfEmpty — Amount, Amount2, [TradingFee]
+ */
+const MODE_MINIMALS: Array<[number, Record<string, unknown>]> = [
+  [AMMDepositFlags.tfLPToken, { LPTokenOut: LP_TOKEN_OUT }],
+  [AMMDepositFlags.tfSingleAsset, { Amount: '1000' }],
+  [AMMDepositFlags.tfTwoAsset, { Amount: '1000', Amount2: '500' }],
+  [
+    AMMDepositFlags.tfOneAssetLPToken,
+    { Amount: '1000', LPTokenOut: LP_TOKEN_OUT },
+  ],
+  [AMMDepositFlags.tfLimitLPToken, { Amount: '1000', EPrice: '25' }],
+  [AMMDepositFlags.tfTwoAssetIfEmpty, { Amount: '1000', Amount2: '500' }],
+];
+
+/** The mode names, for building the expected error messages. */
+const MODE_LABELS: Record<number, string> = {
+  [AMMDepositFlags.tfLPToken]: 'tfLPToken',
+  [AMMDepositFlags.tfSingleAsset]: 'tfSingleAsset',
+  [AMMDepositFlags.tfTwoAsset]: 'tfTwoAsset',
+  [AMMDepositFlags.tfOneAssetLPToken]: 'tfOneAssetLPToken',
+  [AMMDepositFlags.tfLimitLPToken]: 'tfLimitLPToken',
+  [AMMDepositFlags.tfTwoAssetIfEmpty]: 'tfTwoAssetIfEmpty',
+};
+
+/**
+ * Every field each mode forbids, with the value to add to that mode's
+ * minimal valid shape. Transcribed from rippled's per-mode branches.
+ */
+const MODE_FORBIDDEN: Array<[number, string, Record<string, unknown>]> = [
+  [AMMDepositFlags.tfLPToken, 'EPrice', { EPrice: '25' }],
+  [AMMDepositFlags.tfLPToken, 'TradingFee', { TradingFee: 5 }],
+  [AMMDepositFlags.tfSingleAsset, 'Amount2', { Amount2: '500' }],
+  [AMMDepositFlags.tfSingleAsset, 'EPrice', { EPrice: '25' }],
+  [AMMDepositFlags.tfSingleAsset, 'TradingFee', { TradingFee: 5 }],
+  [AMMDepositFlags.tfTwoAsset, 'EPrice', { EPrice: '25' }],
+  [AMMDepositFlags.tfTwoAsset, 'TradingFee', { TradingFee: 5 }],
+  [AMMDepositFlags.tfOneAssetLPToken, 'Amount2', { Amount2: '500' }],
+  [AMMDepositFlags.tfOneAssetLPToken, 'EPrice', { EPrice: '25' }],
+  [AMMDepositFlags.tfOneAssetLPToken, 'TradingFee', { TradingFee: 5 }],
+  [AMMDepositFlags.tfLimitLPToken, 'LPTokenOut', { LPTokenOut: LP_TOKEN_OUT }],
+  [AMMDepositFlags.tfLimitLPToken, 'Amount2', { Amount2: '500' }],
+  [AMMDepositFlags.tfLimitLPToken, 'TradingFee', { TradingFee: 5 }],
+  [AMMDepositFlags.tfTwoAssetIfEmpty, 'EPrice', { EPrice: '25' }],
+  [
+    AMMDepositFlags.tfTwoAssetIfEmpty,
+    'LPTokenOut',
+    { LPTokenOut: LP_TOKEN_OUT },
+  ],
+];
+
+/**
+ * Each mode with one of its required fields missing: the mode, the
+ * remaining fields, and the required field the error must name.
+ */
+const MODE_MISSING_REQUIRED: Array<
+  [number, Record<string, unknown>, string]
+> = [
+  [AMMDepositFlags.tfLPToken, {}, 'LPTokenOut'],
+  [AMMDepositFlags.tfSingleAsset, {}, 'Amount'],
+  [AMMDepositFlags.tfTwoAsset, { Amount: '1000' }, 'Amount2'],
+  [AMMDepositFlags.tfOneAssetLPToken, { Amount: '1000' }, 'LPTokenOut'],
+  [AMMDepositFlags.tfLimitLPToken, { Amount: '1000' }, 'EPrice'],
+  [AMMDepositFlags.tfTwoAssetIfEmpty, { Amount: '1000' }, 'Amount2'],
+];
 
 describe('fp/ammDeposit()', () => {
   describe('construction', () => {
@@ -153,22 +250,35 @@ describe('fp/ammDeposit()', () => {
     });
 
     it('accepts IssuedCurrency form for Amount / Amount2 / EPrice', () => {
-      const tx = ammDeposit({
+      // No deposit mode allows Amount + Amount2 + EPrice together:
+      // tfTwoAsset forbids EPrice, tfLimitLPToken forbids Amount2. The
+      // intent of this test — that these fields accept the IssuedCurrency
+      // object form — is therefore split across the two modes that do
+      // allow them. See "deposit-mode field matrix" below.
+      const twoAsset = ammDeposit({
         Account: LP,
         Asset: { currency: 'USD', issuer: ETH_ISSUER },
         Asset2: { currency: 'XRP' },
         Amount: { currency: 'USD', issuer: ETH_ISSUER, value: '100' },
         Amount2: '500', // XRP form is a string
-        EPrice: { currency: 'USD', issuer: ETH_ISSUER, value: '25' },
         Flags: AMMDepositFlags.tfTwoAsset,
       });
-      expect(tx.Amount).toEqual({
+      expect(twoAsset.Amount).toEqual({
         currency: 'USD',
         issuer: ETH_ISSUER,
         value: '100',
       });
-      expect(tx.Amount2).toBe('500');
-      expect(tx.EPrice).toEqual({
+      expect(twoAsset.Amount2).toBe('500');
+
+      const limitLpToken = ammDeposit({
+        Account: LP,
+        Asset: { currency: 'USD', issuer: ETH_ISSUER },
+        Asset2: { currency: 'XRP' },
+        Amount: { currency: 'USD', issuer: ETH_ISSUER, value: '100' },
+        EPrice: { currency: 'USD', issuer: ETH_ISSUER, value: '25' },
+        Flags: AMMDepositFlags.tfLimitLPToken,
+      });
+      expect(limitLpToken.EPrice).toEqual({
         currency: 'USD',
         issuer: ETH_ISSUER,
         value: '25',
@@ -302,16 +412,11 @@ describe('fp/ammDeposit()', () => {
     });
 
     it('accepts each of the six mode flags individually', () => {
-      const modes = [
-        AMMDepositFlags.tfLPToken,
-        AMMDepositFlags.tfSingleAsset,
-        AMMDepositFlags.tfTwoAsset,
-        AMMDepositFlags.tfOneAssetLPToken,
-        AMMDepositFlags.tfLimitLPToken,
-        AMMDepositFlags.tfTwoAssetIfEmpty,
-      ];
-      for (const flag of modes) {
-        expect(() => make({ Flags: flag })).not.toThrow();
+      // Each mode carries its own required fields, so the minimal valid
+      // shape per mode is listed here rather than shared. rippled's
+      // per-mode matrix is transcribed in "deposit-mode field matrix" below.
+      for (const [flag, fields] of MODE_MINIMALS) {
+        expect(() => makeMode(flag, fields)).not.toThrow();
       }
     });
   });
@@ -420,39 +525,103 @@ describe('fp/ammDeposit()', () => {
     });
   });
 
-  describe('LPTokenOut / Amount presence validation', () => {
-    it('throws when neither LPTokenOut nor Amount is set (divergence #8)', () => {
-      expect(() =>
-        ammDeposit({
-          Account: LP,
-          Asset: { currency: 'XRP' },
-          Asset2: { currency: 'ETH', issuer: ETH_ISSUER },
-        }),
-      ).toThrow(/LPTokenOut or Amount/);
+  // ─── Deposit-mode field matrix ───────────────────────────────────────────
+  // rippled's `AMMDeposit::preflight` fixes which of `Amount`, `Amount2`,
+  // `EPrice`, `LPTokenOut` and `TradingFee` may accompany each deposit
+  // mode. The matrix below is a transcription of
+  // `src/libxrpl/tx/transactors/dex/AMMDeposit.cpp:66–112`.
+  describe('deposit-mode field matrix', () => {
+    it('accepts each mode with its minimal valid field set', () => {
+      for (const [flag, fields] of MODE_MINIMALS) {
+        expect(() => makeMode(flag, fields)).not.toThrow();
+      }
     });
 
-    it('throws when Amount2 is set without Amount (divergence #7)', () => {
-      expect(() =>
-        ammDeposit({
-          Account: LP,
-          Asset: { currency: 'XRP' },
-          Asset2: { currency: 'ETH', issuer: ETH_ISSUER },
-          LPTokenOut: LP_TOKEN_OUT,
-          Amount2: { currency: 'ETH', issuer: ETH_ISSUER, value: '2.5' },
-        }),
-      ).toThrow(/Amount with Amount2/);
+    it('rejects every field the mode forbids', () => {
+      for (const [flag, field, extra] of MODE_FORBIDDEN) {
+        const minimal = MODE_MINIMALS.find(([f]) => f === flag)?.[1] ?? {};
+        expect(
+          () => makeMode(flag, { ...minimal, ...extra }),
+          `${field} must not be allowed with mode ${flag}`,
+        ).toThrow(
+          new RegExp(
+            `AMMDeposit: ${field} is not allowed with the ${MODE_LABELS[flag]} deposit mode`,
+          ),
+        );
+      }
     });
 
-    it('throws when EPrice is set without Amount (divergence #7)', () => {
+    it('rejects a mode that is missing a field it requires', () => {
+      for (const [flag, fields, required] of MODE_MISSING_REQUIRED) {
+        expect(
+          () => makeMode(flag, fields),
+          `${MODE_LABELS[flag]} must require ${required}`,
+        ).toThrow(
+          new RegExp(
+            `AMMDeposit: ${MODE_LABELS[flag]} requires ${required}`,
+          ),
+        );
+      }
+    });
+
+    it('rejects an Amount2 without an Amount', () => {
+      // Was the generic "must set Amount with Amount2" rule; the matrix
+      // covers it, and says which mode was wrong.
       expect(() =>
-        ammDeposit({
-          Account: LP,
-          Asset: { currency: 'XRP' },
-          Asset2: { currency: 'ETH', issuer: ETH_ISSUER },
-          LPTokenOut: LP_TOKEN_OUT,
-          EPrice: '25',
-        }),
-      ).toThrow(/Amount with EPrice/);
+        makeMode(AMMDepositFlags.tfSingleAsset, { Amount2: '500' }),
+      ).toThrow(/Amount2 is not allowed with the tfSingleAsset deposit mode/);
+    });
+
+    it('rejects an EPrice without an Amount', () => {
+      expect(() =>
+        makeMode(AMMDepositFlags.tfLimitLPToken, { EPrice: '25' }),
+      ).toThrow(/tfLimitLPToken requires Amount/);
+    });
+
+    it('rejects a deposit with neither LPTokenOut nor Amount', () => {
+      expect(() => makeMode(AMMDepositFlags.tfSingleAsset)).toThrow(
+        /tfSingleAsset requires Amount/,
+      );
+    });
+
+    describe('tfLPToken requires Amount and Amount2 together or not at all', () => {
+      it('accepts neither', () => {
+        expect(() =>
+          makeMode(AMMDepositFlags.tfLPToken, { LPTokenOut: LP_TOKEN_OUT }),
+        ).not.toThrow();
+      });
+
+      it('accepts both', () => {
+        expect(() =>
+          makeMode(AMMDepositFlags.tfLPToken, {
+            LPTokenOut: LP_TOKEN_OUT,
+            Amount: '1000',
+            Amount2: '500',
+          }),
+        ).not.toThrow();
+      });
+
+      it('rejects Amount alone', () => {
+        expect(() =>
+          makeMode(AMMDepositFlags.tfLPToken, {
+            LPTokenOut: LP_TOKEN_OUT,
+            Amount: '1000',
+          }),
+        ).toThrow(
+          /tfLPToken requires Amount and Amount2 to both be present or both absent/,
+        );
+      });
+
+      it('rejects Amount2 alone', () => {
+        expect(() =>
+          makeMode(AMMDepositFlags.tfLPToken, {
+            LPTokenOut: LP_TOKEN_OUT,
+            Amount2: '500',
+          }),
+        ).toThrow(
+          /tfLPToken requires Amount and Amount2 to both be present or both absent/,
+        );
+      });
     });
   });
 
@@ -552,10 +721,10 @@ describe('fp/ammDeposit()', () => {
       expect(() => tx.with({ Amount: 1234 as never })).toThrow(
         /Amount must be an Amount/,
       );
-      // Drop Amount entirely (rejected by divergence #8).
+      // Drop Amount entirely (rejected by the deposit-mode matrix).
       expect(() =>
         tx.with({ Amount: undefined as never }),
-      ).toThrow(/LPTokenOut or Amount/);
+      ).toThrow(/tfSingleAsset requires Amount/);
     });
 
     it('.toJSON() produces a plain object with TransactionType + provided fields', () => {
@@ -618,7 +787,7 @@ describe('fp/ammDeposit()', () => {
 
     it('rejects a fee in any other deposit mode', () => {
       expect(() => make({ Flags: AMMDepositFlags.tfSingleAsset, TradingFee: 500 })).toThrow(
-        /TradingFee is only allowed with the tfTwoAssetIfEmpty deposit mode/,
+        /TradingFee is not allowed with the tfSingleAsset deposit mode/,
       );
     });
 

@@ -55,19 +55,29 @@
  *   6. `EPrice`, when present, must be a valid `Amount`. Same source
  *      as #4 but applied to EPrice (xrpl.js lines 128–130).
  *
- *   7. `Amount2` and `EPrice` are not allowed without `Amount`. The
- *      class API does not check that Amount2 / EPrice are paired
- *      with Amount.
- *      Source: xrpl.js `validateAMMDeposit` lines 104–112 — throws
- *      `'AMMDeposit: must set Amount with Amount2'` and
- *      `'AMMDeposit: must set Amount with EPrice'`.
+ *   7. The per-deposit-mode field set is enforced.
+ *      The class API does not enforce the minimal field set for a deposit
+ *      mode at all — it accepts any combination of `Amount`, `Amount2`,
+ *      `EPrice`, `LPTokenOut` and `TradingFee`. xrpl.js enforces a weaker
+ *      generic subset (`Amount` with `Amount2`, `Amount` with `EPrice`, and
+ *      at least one of `LPTokenOut` or `Amount`). rippled enforces the full
+ *      per-mode matrix, which the factory follows:
  *
- *   8. At least one of `LPTokenOut` or `Amount` must be present.
- *      The class API does not enforce the minimal field set.
- *      Source: xrpl.js `validateAMMDeposit` lines 108–112 — throws
- *      `'AMMDeposit: must set at least LPTokenOut or Amount'`.
+ *        tfLPToken         — LPTokenOut, [Amount, Amount2]   (both or neither)
+ *        tfSingleAsset     — Amount, [LPTokenOut]
+ *        tfTwoAsset        — Amount, Amount2, [LPTokenOut]
+ *        tfOneAssetLPToken — Amount and LPTokenOut
+ *        tfLimitLPToken    — Amount and EPrice
+ *        tfTwoAssetIfEmpty — Amount, Amount2, [TradingFee]
  *
- *   9. `Flags` must contain exactly one AMM-deposit mode flag.
+ *      The matrix subsumes the generic rules: every combination they
+ *      rejected is rejected here too, and the message names the mode.
+ *      Source: rippled `src/libxrpl/tx/transactors/dex/AMMDeposit.cpp:66–112`
+ *              (the per-mode branches);
+ *              xrpl.js `validateAMMDeposit` lines 104–112 (the weaker
+ *              generic subset).
+ *
+ *   8. `Flags` must contain exactly one AMM-deposit mode flag.
  *      The class API performs no flag validation at all: `grep -n "Flags"
  *      xrpl.js src/models/transactions/AMMDeposit.ts` returns only the
  *      enum and the interface, never a check inside
@@ -78,7 +88,7 @@
  *      That sentence is byte-identical to `ammwithdraw.md` line 107; the
  *      two rules are the same and only the flag list differs.
  *
- *   10. `Account` must be a well-formed XRPL classic or X-address.
+ *   9. `Account` must be a well-formed XRPL classic or X-address.
  *       The class API's base validator checks `Account` with `isString`
  *       only, so `"not-an-address"` passes. The factory requires a
  *       well-formed address — a format check, not a checksum verification.
@@ -91,7 +101,7 @@
  *               (`validateRequiredField(common, 'Account', isString)`);
  *               Class API `src/validation/base.ts:40–41`.
  *
- *   11. `TradingFee` is not declared by the class.
+ *   10. `TradingFee` is not declared by the class.
  *       The class exposes no `TradingFee` field, so callers using the class
  *       API cannot set the AMM's trading fee when depositing into an empty
  *       two-asset AMM. The factory adds the field with the protocol's
@@ -132,6 +142,9 @@ import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 //   tfLimitLPToken    = 0x00400000
 //   tfTwoAssetIfEmpty = 0x00800000
 //
+// rippled `include/xrpl/protocol/TxFlags.h:170–175` — the same six bits,
+// and `tfDepositSubTx` (line 409) is exactly their union.
+//
 // Note the sparse bit positions: 0x00020000 and 0x00040000 are
 // AMM-*withdraw* modes (tfWithdrawAll, tfOneAssetWithdrawAll), not deposit
 // modes, so they are absent above. The mask is therefore required — a
@@ -140,20 +153,26 @@ import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 //
 // They are non-overlapping single bits, so an "exactly one" check
 // reduces to: popcount(flags & MASK) === 1.
-const AMM_DEPOSIT_FLAG_BITS = [
-  0x00010000, // tfLPToken
-  0x00080000, // tfSingleAsset
-  0x00100000, // tfTwoAsset
-  0x00200000, // tfOneAssetLPToken
-  0x00400000, // tfLimitLPToken
-  0x00800000, // tfTwoAssetIfEmpty
-] as const;
-
-/**
- * The one deposit mode that may carry `TradingFee` — rippled rejects
- * `sfTradingFee` in every other mode (`AMMDeposit::preflight`).
- */
+//
+// Named rather than inlined because the same six values appear in three
+// places that must agree — the mask below, `flagsToNumber`, and the
+// per-mode field matrix — and a literal repeated three times is how they
+// drift apart.
+const TF_LP_TOKEN = 0x00010000;
+const TF_SINGLE_ASSET = 0x00080000;
+const TF_TWO_ASSET = 0x00100000;
+const TF_ONE_ASSET_LP_TOKEN = 0x00200000;
+const TF_LIMIT_LP_TOKEN = 0x00400000;
 const TF_TWO_ASSET_IF_EMPTY = 0x00800000;
+
+const AMM_DEPOSIT_FLAG_BITS = [
+  TF_LP_TOKEN,
+  TF_SINGLE_ASSET,
+  TF_TWO_ASSET,
+  TF_ONE_ASSET_LP_TOKEN,
+  TF_LIMIT_LP_TOKEN,
+  TF_TWO_ASSET_IF_EMPTY,
+] as const;
 
 /**
  * rippled `include/xrpl/protocol/AMMCore.h:16` —
@@ -165,6 +184,79 @@ const AMM_DEPOSIT_FLAGS_MASK = AMM_DEPOSIT_FLAG_BITS.reduce<number>(
   (acc, bit) => acc | bit,
   0,
 );
+
+/**
+ * The per-deposit-mode field matrix.
+ *
+ * rippled `AMMDeposit::preflight`
+ * (`src/libxrpl/tx/transactors/dex/AMMDeposit.cpp:66–112`) fixes which of
+ * `Amount`, `Amount2`, `EPrice`, `LPTokenOut` and `TradingFee` may accompany
+ * each deposit mode:
+ *
+ *   tfLPToken         — LPTokenOut, [Amount, Amount2]   (both or neither)
+ *   tfSingleAsset     — Amount, [LPTokenOut]
+ *   tfTwoAsset        — Amount, Amount2, [LPTokenOut]
+ *   tfOneAssetLPToken — Amount and LPTokenOut
+ *   tfLimitLPToken    — Amount and EPrice
+ *   tfTwoAssetIfEmpty — Amount, Amount2, [TradingFee]
+ *
+ * `required` are the fields the mode must carry, `forbidden` the ones it
+ * must not, and `amountPair` is rippled's extra rule for tfLPToken, where
+ * `Amount` and `Amount2` must both be present or both absent.
+ *
+ * This table is the single place that decides *placement*. `TradingFee`'s
+ * value rules live with the field; where the field may appear is decided
+ * here, so there is one answer per question.
+ */
+interface DepositModeSpec {
+  /** The mode's name, for the error message. */
+  readonly label: string;
+  /** Fields the mode requires. */
+  readonly required: readonly string[];
+  /** Fields the mode forbids. */
+  readonly forbidden: readonly string[];
+  /** Whether `Amount` and `Amount2` must both be present or both absent. */
+  readonly amountPair: boolean;
+}
+
+const DEPOSIT_MODE_SPECS: Readonly<Record<number, DepositModeSpec>> = {
+  [TF_LP_TOKEN]: {
+    label: 'tfLPToken',
+    required: ['LPTokenOut'],
+    forbidden: ['EPrice', 'TradingFee'],
+    amountPair: true,
+  },
+  [TF_SINGLE_ASSET]: {
+    label: 'tfSingleAsset',
+    required: ['Amount'],
+    forbidden: ['Amount2', 'EPrice', 'TradingFee'],
+    amountPair: false,
+  },
+  [TF_TWO_ASSET]: {
+    label: 'tfTwoAsset',
+    required: ['Amount', 'Amount2'],
+    forbidden: ['EPrice', 'TradingFee'],
+    amountPair: false,
+  },
+  [TF_ONE_ASSET_LP_TOKEN]: {
+    label: 'tfOneAssetLPToken',
+    required: ['Amount', 'LPTokenOut'],
+    forbidden: ['Amount2', 'EPrice', 'TradingFee'],
+    amountPair: false,
+  },
+  [TF_LIMIT_LP_TOKEN]: {
+    label: 'tfLimitLPToken',
+    required: ['Amount', 'EPrice'],
+    forbidden: ['LPTokenOut', 'Amount2', 'TradingFee'],
+    amountPair: false,
+  },
+  [TF_TWO_ASSET_IF_EMPTY]: {
+    label: 'tfTwoAssetIfEmpty',
+    required: ['Amount', 'Amount2'],
+    forbidden: ['EPrice', 'LPTokenOut'],
+    amountPair: false,
+  },
+};
 
 // rippled `TxFlags.h:43-46` — `tfUniversal = tfFullyCanonicalSig |
 // tfInnerBatchTxn`. These are the only two bits legal on every transaction
@@ -259,12 +351,12 @@ function flagsToNumber(
   if (flags === undefined) return 0;
   if (typeof flags === 'number') return flags;
   let n = 0;
-  if (flags.tfLPToken) n |= 0x00010000;
-  if (flags.tfSingleAsset) n |= 0x00080000;
-  if (flags.tfTwoAsset) n |= 0x00100000;
-  if (flags.tfOneAssetLPToken) n |= 0x00200000;
-  if (flags.tfLimitLPToken) n |= 0x00400000;
-  if (flags.tfTwoAssetIfEmpty) n |= 0x00800000;
+  if (flags.tfLPToken) n |= TF_LP_TOKEN;
+  if (flags.tfSingleAsset) n |= TF_SINGLE_ASSET;
+  if (flags.tfTwoAsset) n |= TF_TWO_ASSET;
+  if (flags.tfOneAssetLPToken) n |= TF_ONE_ASSET_LP_TOKEN;
+  if (flags.tfLimitLPToken) n |= TF_LIMIT_LP_TOKEN;
+  if (flags.tfTwoAssetIfEmpty) n |= TF_TWO_ASSET_IF_EMPTY;
   return n;
 }
 
@@ -291,19 +383,6 @@ export function ammDeposit(props: AmmDepositProps): AmmDeposit {
   if (!isIssuedCurrency(props.Asset2)) {
     throw new ValidationError(
       'AMMDeposit: Asset2 must be a Currency (XRP form or IOU form, NOT MPT)',
-    );
-  }
-
-  // ── Combinatorial rules (xrpl.js `validateAMMDeposit` lines 104–112). ──
-  if (props.Amount2 !== undefined && props.Amount === undefined) {
-    throw new ValidationError('AMMDeposit: must set Amount with Amount2');
-  }
-  if (props.EPrice !== undefined && props.Amount === undefined) {
-    throw new ValidationError('AMMDeposit: must set Amount with EPrice');
-  }
-  if (props.LPTokenOut === undefined && props.Amount === undefined) {
-    throw new ValidationError(
-      'AMMDeposit: must set at least LPTokenOut or Amount',
     );
   }
 
@@ -367,34 +446,71 @@ export function ammDeposit(props: AmmDepositProps): AmmDeposit {
     );
   }
 
-  // ── TradingFee ── only legal in the `tfTwoAssetIfEmpty` mode, and then
-  //   bounded by the protocol's UINT16 threshold.
+  // ── Deposit-mode field matrix ──
   //
-  //   rippled `AMMDeposit::preflight` reads `sfTradingFee` and rejects it in
-  //   every deposit mode except `tfTwoAssetIfEmpty`:
-  //     tfLPToken         — `|| tradingFee` → temMALFORMED
-  //     tfSingleAsset     — `|| tradingFee` → temMALFORMED
-  //     tfTwoAsset        — `|| tradingFee` → temMALFORMED
-  //     tfOneAssetLPToken — `|| tradingFee` → temMALFORMED
-  //     tfLimitLPToken    — `|| tradingFee` → temMALFORMED
-  //     tfTwoAssetIfEmpty — permitted
-  //   and only then checks the bound (`AMMDeposit.cpp:168`):
+  //   rippled `AMMDeposit::preflight` fixes which fields may accompany each
+  //   deposit mode (lines 66–112). The mode flag says which shape the
+  //   deposit has; these rules say which fields that shape may carry.
+  //
+  //   Placed right after the Flags block, because the mode is what selects
+  //   the row, and before the `TradingFee` value check, because rippled
+  //   answers the placement question first (`temMALFORMED`) and the value
+  //   question second (`temBAD_FEE`).
+  const modeSpec = DEPOSIT_MODE_SPECS[ammFlagBits];
+  if (modeSpec === undefined) {
+    // Unreachable in practice: the cardinality check above guarantees
+    // exactly one of the six mode bits, and every one of them has a row
+    // here. If a seventh deposit mode is ever added to
+    // `AMM_DEPOSIT_FLAG_BITS` without a matching row, this fails loudly
+    // rather than silently accepting any field combination.
+    throw new ValidationError('AMMDeposit: unknown deposit mode');
+  }
+  const present: Readonly<Record<string, boolean>> = {
+    Amount: props.Amount !== undefined,
+    Amount2: props.Amount2 !== undefined,
+    EPrice: props.EPrice !== undefined,
+    LPTokenOut: props.LPTokenOut !== undefined,
+    TradingFee: props.TradingFee !== undefined,
+  };
+  // The forbidden check runs FIRST, on purpose. A field the mode forbids
+  // has to be removed no matter what else is wrong, whereas a missing
+  // required field might be satisfied by a different valid shape — and
+  // telling the caller to add `Amount` when `Amount2` is also present
+  // would only lead them to a second error. rippled combines both into
+  // one condition (`!amount || amount2 || ePrice || tradingFee`) and so
+  // does not answer the question; the library can, and should.
+  for (const field of modeSpec.forbidden) {
+    if (present[field]) {
+      throw new ValidationError(
+        `AMMDeposit: ${field} is not allowed with the ${modeSpec.label} deposit mode`,
+      );
+    }
+  }
+  for (const field of modeSpec.required) {
+    if (!present[field]) {
+      throw new ValidationError(
+        `AMMDeposit: ${modeSpec.label} requires ${field}`,
+      );
+    }
+  }
+  if (modeSpec.amountPair && present['Amount'] !== present['Amount2']) {
+    throw new ValidationError(
+      `AMMDeposit: ${modeSpec.label} requires Amount and Amount2 to both be present or both absent`,
+    );
+  }
+
+  // ── TradingFee ── its VALUE rules. Where the field may appear is the
+  //   matrix's job above; rippled checks placement (temMALFORMED) before
+  //   value (temBAD_FEE), and so does this.
+  //
+  //   rippled `AMMDeposit.cpp:168`:
   //     `if (tradingFee > kTradingFeeThreshold) return temBAD_FEE;`
   //   with `kTradingFeeThreshold = 1000`
   //   (`include/xrpl/protocol/AMMCore.h:16`).
-  //
-  //   Placed after the Flags block so the mode is known, and so the
-  //   placement mistake (temMALFORMED) is reported before the value
-  //   mistake (temBAD_FEE) — rippled's own order.
   if (props.TradingFee !== undefined) {
     if (!isNumber(props.TradingFee) || !Number.isInteger(props.TradingFee)) {
       throw new ValidationError(
         'AMMDeposit: TradingFee must be an integer (UINT16)',
-      );
-    }
-    if ((ammFlagBits & TF_TWO_ASSET_IF_EMPTY) === 0) {
-      throw new ValidationError(
-        'AMMDeposit: TradingFee is only allowed with the tfTwoAssetIfEmpty deposit mode',
       );
     }
     if (props.TradingFee < 0 || props.TradingFee > AMM_MAX_TRADING_FEE) {
