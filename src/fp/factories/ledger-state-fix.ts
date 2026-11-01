@@ -77,14 +77,52 @@
  *              `rf1BiGeXwwQoi8Z2ueFYTEXSwuJYfV2Jpn` — classic address
  *              form).
  *
- * Note: `BookDirectory` appears in the xrpl.js binary definitions
- * (`{"name": "BookDirectory", "optionality": 1}`) but is not part of
- * the user-facing transaction reference for any documented
- * `LedgerFixType`. It is reserved for future fix types and is not
- * exposed on the factory interface.
+ *   5. `LedgerFixType` must be a known fix type: `1` (NFToken-page-links) or
+ *      `2` (book exchange rate). The class has no field for `LedgerFixType`
+ *      and skips this check. rippled's `preflight` switches on the value and
+ *      returns `tefINVALID_LEDGER_FIX_TYPE` for anything else — the UInt16
+ *      range the binary serialization allows is wider than the set of fix
+ *      types the ledger implements.
+ *      Source: rippled `src/libxrpl/tx/transactors/system/LedgerStateFix.cpp:58–74`
+ *      (the `switch (fixType)` with `default: return tefINVALID_LEDGER_FIX_TYPE;`)
+ *      and `include/xrpl/tx/transactors/system/LedgerStateFix.h:19–22`
+ *      (`enum class FixType : std::uint16_t { NfTokenPageLink = 1, BookExchangeRate = 2 }`).
+ *      Note that the xrpl-dev-portal reference page still documents only type
+ *      `1` — it trails the ledger, which has shipped `2` since.
+ *
+ *   6. Each fix type allows exactly ONE fix-specific field, and requires it.
+ *      The class has no field for either, so it skips this check entirely.
+ *      rippled maps each fix type to its field and rejects the transaction
+ *      unless that field is present and no other fix-specific field is
+ *      ("Each fix type allows exactly one fix-specific field" →
+ *      `temINVALID`). Type `1` requires `Owner` and forbids `BookDirectory`;
+ *      type `2` requires `BookDirectory` and forbids `Owner`.
+ *      Source: rippled `src/libxrpl/tx/transactors/system/LedgerStateFix.cpp:27–30`
+ *      (`kLedgerFixFields` = `{{NfTokenPageLink, &sfOwner}, {BookExchangeRate, &sfBookDirectory}}`),
+ *      `:44–53` (`hasUnexpectedFixField`), and `:76–79` (the `temINVALID`).
+ *
+ *   7. `BookDirectory` must be a 256-bit hex value. rippled reads it as a
+ *      `uint256` — the key of the book directory whose exchange rate is
+ *      wrong — and the class does not model the field at all.
+ *      Source: rippled `src/libxrpl/tx/transactors/system/LedgerStateFix.cpp:107`
+ *      (`ctx.tx.getFieldH256(sfBookDirectory)`);
+ *      `include/xrpl/protocol/detail/sfields.macro:189`
+ *      (`TYPED_SFIELD(sfBookDirectory, UINT256, 16)`).
+ *
+ * Note: the xrpl-dev-portal reference page for this transaction still
+ * documents only fix type `1` and does not mention `BookDirectory`. rippled
+ * has shipped type `2` (`BookExchangeRate`), gated on the `fixCleanup3_2_0`
+ * amendment — so the library follows the ledger, not the page. A network
+ * without that amendment enabled returns `temDISABLED` for type `2`, which
+ * is network state the factory cannot see.
  */
 import type { BasePropsFields } from '../../types/base.js';
-import { isAccount, isNumber, isString } from '../../validation/helpers.js';
+import {
+  isAccount,
+  isLedgerEntryId,
+  isNumber,
+  isString,
+} from '../../validation/helpers.js';
 import { ValidationError } from '../../errors.js';
 import { validateBaseTransaction } from '../../validation/base.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
@@ -95,8 +133,13 @@ import { buildFrozenTx, mergeForWith, require } from '../shape.js';
 const MIN_FEE_DROPS = 2_000_000; // 2 XRP = owner reserve for one item
 /** `LedgerFixType` is a UInt16 per the binary serialization. */
 const LEDGER_FIX_TYPE_MAX = 0xffff;
-/** The only documented fix type (NFToken-page-links). */
+/**
+ * The fix types the ledger implements. rippled's `preflight` switches on this
+ * value and returns `tefINVALID_LEDGER_FIX_TYPE` for anything outside the set.
+ * Source: rippled `include/xrpl/tx/transactors/system/LedgerStateFix.h:19–22`.
+ */
 const LEDGER_FIX_TYPE_NFTOKEN_PAGE_LINKS = 1;
+const LEDGER_FIX_TYPE_BOOK_EXCHANGE_RATE = 2;
 
 // ─── Public types ────────────────────────────────────────────────────
 
@@ -118,17 +161,24 @@ export interface LedgerStateFixProps extends Omit<
   /** Sender. Classic or X-address. */
   Account: string;
   /**
-   * The type of fix to apply. UInt16 (0..65535). Currently only `1` is
-   * defined (NFToken-page-links fix); other values yield
-   * `tefINVALID_LEDGER_FIX_TYPE` at apply time.
+   * The type of fix to apply. UInt16 (0..65535), and one of the two fix
+   * types the ledger implements: `1` (NFToken-page-links) or `2` (book
+   * exchange rate). Any other value yields `tefINVALID_LEDGER_FIX_TYPE`.
    */
   LedgerFixType: number;
   /**
    * The account whose ledger entry needs fixing. Required when
-   * `LedgerFixType === 1` (the NFToken-page-links fix); optional
-   * otherwise. Classic or X-address. Does not need to match `Account`.
+   * `LedgerFixType === 1` (the NFToken-page-links fix); must be absent when
+   * `LedgerFixType === 2`. Classic or X-address. Does not need to match
+   * `Account`.
    */
   Owner?: string | undefined;
+  /**
+   * The key of the book directory whose exchange rate needs fixing, as 64 hex
+   * characters. Required when `LedgerFixType === 2` (the book-exchange-rate
+   * fix); must be absent when `LedgerFixType === 1`.
+   */
+  BookDirectory?: string | undefined;
   /**
    * Fee in drops. Must be ≥ 2,000,000 (owner reserve for one item)
    * per the Special Transaction Cost rule. Required for submission.
@@ -175,14 +225,46 @@ export function ledgerStateFix(
     );
   }
 
-  // ── Owner ── required iff LedgerFixType === 1.
+  // ── LedgerFixType ── must be one of the fix types the ledger implements.
+  // The UInt16 range is wider than that set: rippled switches on the value
+  // and rejects anything else with `tefINVALID_LEDGER_FIX_TYPE`.
+  if (
+    props.LedgerFixType !== LEDGER_FIX_TYPE_NFTOKEN_PAGE_LINKS &&
+    props.LedgerFixType !== LEDGER_FIX_TYPE_BOOK_EXCHANGE_RATE
+  ) {
+    throw new ValidationError(
+      'LedgerStateFix: LedgerFixType must be 1 (NFToken-page-links) or 2 (book exchange rate)',
+    );
+  }
+
+  // ── Owner / BookDirectory ── each fix type allows exactly ONE fix-specific
+  // field, and requires it. rippled rejects a missing or an extra one with
+  // `temINVALID`.
   if (props.LedgerFixType === LEDGER_FIX_TYPE_NFTOKEN_PAGE_LINKS) {
     if (props.Owner === undefined) {
       throw new ValidationError(
         'LedgerStateFix: Owner is required when LedgerFixType === 1 (NFToken-page-links fix)',
       );
     }
+    if (props.BookDirectory !== undefined) {
+      throw new ValidationError(
+        'LedgerStateFix: BookDirectory is not allowed when LedgerFixType === 1 (NFToken-page-links fix)',
+      );
+    }
+  } else {
+    if (props.BookDirectory === undefined) {
+      throw new ValidationError(
+        'LedgerStateFix: BookDirectory is required when LedgerFixType === 2 (book exchange rate fix)',
+      );
+    }
+    if (props.Owner !== undefined) {
+      throw new ValidationError(
+        'LedgerStateFix: Owner is not allowed when LedgerFixType === 2 (book exchange rate fix)',
+      );
+    }
   }
+
+  // ── Owner ── shape.
   if (props.Owner !== undefined) {
     if (!isString(props.Owner)) {
       throw new ValidationError(
@@ -192,6 +274,15 @@ export function ledgerStateFix(
     if (!isAccount(props.Owner)) {
       throw new ValidationError(
         'LedgerStateFix: Owner must be a valid XRPL classic or X-address',
+      );
+    }
+  }
+
+  // ── BookDirectory ── a 256-bit value: the key of the book directory.
+  if (props.BookDirectory !== undefined) {
+    if (!isLedgerEntryId(props.BookDirectory)) {
+      throw new ValidationError(
+        'LedgerStateFix: BookDirectory must be a 64-character hex string',
       );
     }
   }

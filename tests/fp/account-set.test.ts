@@ -96,6 +96,113 @@ describe('fp/accountSet()', () => {
     });
   });
 
+  // ─── NFTokenMinter ───
+  // rippled couples this field to `asfAuthorizedNFTokenMinter` (10): the
+  // minter is REQUIRED when the flag is set, and FORBIDDEN when it is
+  // cleared. Both mistakes are `temMALFORMED` at the ledger.
+  // Source: rippled `src/libxrpl/tx/transactors/account/AccountSet.cpp:159–163`.
+  describe('NFTokenMinter', () => {
+    const MINTER = 'rf1BiGeXwwQoi8Z2ueFYTEXSwuJYfV2Jpn';
+    const ASF_AUTHORIZED_NFTOKEN_MINTER = 10;
+
+    it('accepts a minter alongside SetFlag: asfAuthorizedNFTokenMinter', () => {
+      const tx = accountSet({
+        Account: ACCOUNT_A,
+        SetFlag: ASF_AUTHORIZED_NFTOKEN_MINTER,
+        NFTokenMinter: MINTER,
+      });
+      expect(tx.NFTokenMinter).toBe(MINTER);
+    });
+
+    it('accepts a minter on its own, with no flag', () => {
+      const tx = accountSet({ Account: ACCOUNT_A, NFTokenMinter: MINTER });
+      expect(tx.NFTokenMinter).toBe(MINTER);
+    });
+
+    it('throws when SetFlag is asfAuthorizedNFTokenMinter and no minter is given', () => {
+      expect(() =>
+        accountSet({
+          Account: ACCOUNT_A,
+          SetFlag: ASF_AUTHORIZED_NFTOKEN_MINTER,
+        }),
+      ).toThrow(/NFTokenMinter is required/);
+    });
+
+    it('throws when ClearFlag is asfAuthorizedNFTokenMinter and a minter is given', () => {
+      expect(() =>
+        accountSet({
+          Account: ACCOUNT_A,
+          ClearFlag: ASF_AUTHORIZED_NFTOKEN_MINTER,
+          NFTokenMinter: MINTER,
+        }),
+      ).toThrow(/must not be set/);
+    });
+
+    it('accepts ClearFlag: asfAuthorizedNFTokenMinter with no minter', () => {
+      const tx = accountSet({
+        Account: ACCOUNT_A,
+        ClearFlag: ASF_AUTHORIZED_NFTOKEN_MINTER,
+      });
+      expect(tx.NFTokenMinter).toBeUndefined();
+    });
+
+    it('throws when the minter is not a valid XRPL address', () => {
+      expect(() =>
+        accountSet({ Account: ACCOUNT_A, NFTokenMinter: 'not-an-address' }),
+      ).toThrow(/classic or X-address/);
+    });
+
+    it('throws when the minter is not a string', () => {
+      expect(() =>
+        accountSet({ Account: ACCOUNT_A, NFTokenMinter: 42 as unknown as string }),
+      ).toThrow(/must be a string/);
+    });
+
+    it('does not treat an unrelated SetFlag value as the minter flag', () => {
+      // rippled compares with exact equality (`uSetFlag == asfAuthorizedNFTokenMinter`),
+      // so a different flag must not demand a minter.
+      const tx = accountSet({ Account: ACCOUNT_A, SetFlag: 8 });
+      expect(tx.SetFlag).toBe(8);
+    });
+  });
+
+  // ─── WalletLocator ───
+  // A 256-bit value, read by rippled as a `uint256`. An all-zero value is
+  // legal and means "clear the locator" rather than "set it to zero".
+  // Source: rippled `src/libxrpl/tx/transactors/account/AccountSet.cpp:428–442`.
+  describe('WalletLocator', () => {
+    const LOCATOR = 'ab'.repeat(32);
+
+    it('accepts a 64-character hex locator', () => {
+      const tx = accountSet({ Account: ACCOUNT_A, WalletLocator: LOCATOR });
+      expect(tx.WalletLocator).toBe(LOCATOR);
+    });
+
+    it('accepts the all-zero locator (rippled treats it as "unset")', () => {
+      const zero = '00'.repeat(32);
+      const tx = accountSet({ Account: ACCOUNT_A, WalletLocator: zero });
+      expect(tx.WalletLocator).toBe(zero);
+    });
+
+    it('throws when the locator is not 64 hex characters', () => {
+      expect(() =>
+        accountSet({ Account: ACCOUNT_A, WalletLocator: 'abcd' }),
+      ).toThrow(/64-character hex/);
+    });
+
+    it('throws when the locator is 64 characters but not hex', () => {
+      expect(() =>
+        accountSet({ Account: ACCOUNT_A, WalletLocator: 'z'.repeat(64) }),
+      ).toThrow(/64-character hex/);
+    });
+
+    it('throws when the locator is not a string', () => {
+      expect(() =>
+        accountSet({ Account: ACCOUNT_A, WalletLocator: 123 as unknown as string }),
+      ).toThrow(/64-character hex/);
+    });
+  });
+
   // ─── BaseTransactionFields ───
   // The props type now extends
   // `Omit<BaseTransactionFields, 'TransactionType' | 'Flags'>`, so the seven

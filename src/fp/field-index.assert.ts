@@ -299,9 +299,6 @@ type AllOwnerTxTypes = SetElement<(typeof Owners)[keyof typeof Owners]>;
 
 /** Fields the protocol contributes that this library does not model. */
 type ProtocolOnlyFields =
-  | 'BookDirectory'
-  | 'NFTokenMinter'
-  | 'WalletLocator'
   | 'WalletSize';
 
 type IsNever<T> = [T] extends [never] ? true : false;
@@ -330,8 +327,8 @@ type TxTypes = Check<Exclude<AllOwnerTxTypes, TxType>, 'TX_TYPE_SOUNDNESS'>;
 /**
  * KEY SOUNDNESS — every index key is either a field some props interface
  * declares or a field the protocol contributes. The protocol contributes
- * 4 fields this library does not model
- * (`BookDirectory`, `NFTokenMinter`, `WalletLocator`, `WalletSize`) — the entire point of
+ * 1 field this library does not model
+ * (`WalletSize`) — the entire point of
  * merging in protocol truth: those are real ledger fields, so using one on the
  * wrong transaction is caught even though this library has no interface for it.
  */

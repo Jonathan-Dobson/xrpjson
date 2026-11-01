@@ -30,6 +30,44 @@
  *   code is ≤ 256 and therefore not discardable
  *   (`include/xrpl/protocol/SField.h:242-246`).
  *
+ * - **`NFTokenMinter` must accompany `SetFlag: asfAuthorizedNFTokenMinter`,
+ *   and must be absent when `ClearFlag` carries that flag.** The class API's
+ *   base validator checks `Account` with `isString` only and models no
+ *   AccountSet flag semantics at all, so it accepts both mistakes.
+ *   rippled requires the minter when the flag is set ("if
+ *   `uSetFlag == asfAuthorizedNFTokenMinter && !tx.isFieldPresent(sfNFTokenMinter)`
+ *   → `temMALFORMED`") and forbids it when the flag is cleared ("if
+ *   `uClearFlag == asfAuthorizedNFTokenMinter && tx.isFieldPresent(sfNFTokenMinter)`
+ *   → `temMALFORMED`").
+ *   - Source: rippled `src/libxrpl/tx/transactors/account/AccountSet.cpp:159–163`;
+ *   - xrpl.js `models/transactions/accountSet.ts:165,181`
+ *     (`NFTokenMinter?: Account`, `validateOptionalField(tx, 'NFTokenMinter', isAccount)`)
+ *     — xrpl.js models the field and checks its shape, but not the flag coupling;
+ *   - Class API `src/validation/base.ts:40–41`.
+ *
+ * - **`WalletLocator` must be a 256-bit hex value.** The class API and xrpl.js
+ *   both model no `WalletLocator` on `AccountSet`, so both accept any value
+ *   and leave it to the codec. rippled reads it as a `uint256` and treats an
+ *   all-zero value as "unset the wallet locator" rather than "set it to
+ *   zero" (`makeFieldAbsent` vs `setFieldH256`).
+ *   - Source: rippled `src/libxrpl/tx/transactors/account/AccountSet.cpp:428–442`;
+ *     `include/xrpl/protocol/detail/sfields.macro:178`
+ *     (`TYPED_SFIELD(sfWalletLocator, UINT256, 7)`).
+ *
+ * - **`WalletSize` is deliberately not modelled.** It is a real AccountSet
+ *   field (`sfWalletSize`, UINT32, field code 12) and the codec accepts it on
+ *   the wire — but no rippled transactor ever reads it. `grep -rn "WalletSize"
+ *   src/` over rippled returns nothing outside the generated protocol
+ *   accessors, so setting it changes nothing on the ledger. Modelling it
+ *   would give a caller a typed prop for a field with no effect, and a guard
+ *   for a value the ledger never inspects. It stays a protocol-only field:
+ *   accepted on AccountSet (the transaction that owns it), rejected anywhere
+ *   else.
+ *   - Source: rippled `include/xrpl/protocol/detail/sfields.macro:58`
+ *     (`TYPED_SFIELD(sfWalletSize, UINT32, 12)`);
+ *     `include/xrpl/protocol/detail/transactions.macro:98`
+ *     (`{sfWalletSize, SoeOptional}` in the `ttACCOUNT_SET` block).
+ *
  * - **`Account` must be a well-formed XRPL classic or X-address.** The
  *   class API's base validator checks `Account` with `isString` only, so
  *   `"not-an-address"` passes. The factory requires a well-formed
@@ -44,10 +82,22 @@
  *     Class API `src/validation/base.ts:40–41`.
  */
 import type { BasePropsFields } from '../../types/base.js';
-import { isAccount, isNumber, isString } from '../../validation/helpers.js';
+import {
+  isAccount,
+  isLedgerEntryId,
+  isNumber,
+  isString,
+} from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
+
+// `asfAuthorizedNFTokenMinter` — the AccountSet flag that authorises another
+// account to mint NFToken mints on this account's behalf. Declared locally
+// rather than imported from `src/types/flags.js` so this factory does not pull
+// the whole flags module into a bundle that only wants AccountSet.
+// Source: `src/types/flags.ts` (`AccountSetAsfFlags.asfAuthorizedNFTokenMinter`).
+const ASF_AUTHORIZED_NFTOKEN_MINTER = 10;
 
 // Why the two keys are omitted — do not "simplify" this away:
 //  TransactionType: buildFrozenTx spreads props AFTER setting it, so a
@@ -72,12 +122,23 @@ export interface AccountSetProps extends Omit<
   EmailHash?: string | undefined;
   /** Message key for encrypted messaging. */
   MessageKey?: string | undefined;
+  /**
+   * Account authorised to mint NFToken mints on this account's behalf.
+   * Required when `SetFlag` is `asfAuthorizedNFTokenMinter` (10); must be
+   * absent when `ClearFlag` carries that same flag.
+   */
+  NFTokenMinter?: string | undefined;
   /** Flag to enable on the account. */
   SetFlag?: number | undefined;
   /** Transfer rate for issued currencies (drops per billion). */
   TransferRate?: number | undefined;
   /** Tick size for offer matching (3-15 or 0 to disable). */
   TickSize?: number | undefined;
+  /**
+   * 256-bit wallet locator for this account, as 64 hex characters. An
+   * all-zero value clears the locator rather than setting it.
+   */
+  WalletLocator?: string | undefined;
   /** Bit-flags for this transaction. */
   Flags?: number | undefined;
 }
@@ -126,6 +187,51 @@ export function accountSet(props: AccountSetProps): AccountSet {
       'AccountSet: Domain must be a string',
       isString,
     );
+  }
+
+  // ── NFTokenMinter ── the account authorised to mint on this account's
+  // behalf. rippled stores it as an AccountID, so the shape is an address.
+  if (props.NFTokenMinter !== undefined) {
+    require(
+      props.NFTokenMinter,
+      'AccountSet: NFTokenMinter must be a string',
+      isString,
+    );
+    if (!isAccount(props.NFTokenMinter)) {
+      throw new ValidationError(
+        'AccountSet: NFTokenMinter must be a valid XRPL classic or X-address',
+      );
+    }
+  }
+
+  // ── NFTokenMinter ↔ asfAuthorizedNFTokenMinter ── rippled requires the
+  // minter when the flag is set, and forbids it when the flag is cleared.
+  // Both are `temMALFORMED` at the ledger.
+  if (
+    props.SetFlag === ASF_AUTHORIZED_NFTOKEN_MINTER &&
+    props.NFTokenMinter === undefined
+  ) {
+    throw new ValidationError(
+      'AccountSet: NFTokenMinter is required when SetFlag is asfAuthorizedNFTokenMinter (10)',
+    );
+  }
+  if (
+    props.ClearFlag === ASF_AUTHORIZED_NFTOKEN_MINTER &&
+    props.NFTokenMinter !== undefined
+  ) {
+    throw new ValidationError(
+      'AccountSet: NFTokenMinter must not be set when ClearFlag is asfAuthorizedNFTokenMinter (10)',
+    );
+  }
+
+  // ── WalletLocator ── a 256-bit value. rippled reads it as a uint256, so
+  // anything other than 64 hex characters is malformed on the wire.
+  if (props.WalletLocator !== undefined) {
+    if (!isLedgerEntryId(props.WalletLocator)) {
+      throw new ValidationError(
+        'AccountSet: WalletLocator must be a 64-character hex string',
+      );
+    }
   }
 
   // ─── Base transaction fields ───

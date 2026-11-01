@@ -16,18 +16,15 @@ can start failing — and the widening has a cost, recorded below.
 
 ## Protocol-only fields — the new catch surface
 
-These 4 fields exist in the protocol but have no `XxxProps`
-interface in this library. Using one on the **wrong** transaction is caught by
-the index and rejected at construction. Using one on the transaction that
+1 field exists in the protocol but has no `XxxProps`
+interface in this library. Using it on the **wrong** transaction is caught by
+the index and rejected at construction. Using it on the transaction that
 **owns** it is accepted and passed through unvalidated, because this library
 has no guard for a field it does not model — the ledger rejects it later, with
 a less specific message.
 
 | Field | Owning transaction(s) |
 |---|---|
-| `BookDirectory` | `LedgerStateFix` |
-| `NFTokenMinter` | `AccountSet` |
-| `WalletLocator` | `AccountSet` |
 | `WalletSize` | `AccountSet` |
 
 ## Per-transaction divergences
@@ -37,8 +34,7 @@ fields the codec places on a transaction this library does not model them on.
 
 | Transaction | Modelled here, not in the codec | In the codec, not modelled here |
 |---|---|---|
-| `AccountSet` | — | `NFTokenMinter`, `WalletLocator`, `WalletSize` |
-| `LedgerStateFix` | — | `BookDirectory` |
+| `AccountSet` | — | `WalletSize` |
 
 ## Why these are not resolved
 

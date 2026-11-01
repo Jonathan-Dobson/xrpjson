@@ -99,14 +99,20 @@ describe('field ownership index (Bug #11)', () => {
     // These four come from the codec's own TRANSACTION_FORMATS table rather
     // than from any xrpjson interface. Merging in protocol truth is what makes
     // a misplacement catchable for a field this library has no interface for.
-    const PROTOCOL_ONLY: ReadonlyArray<readonly [string, string, string]> = [
+    //
+    // Three of them are now MODELLED — `WalletLocator` and `NFTokenMinter`
+    // (AccountSet), `BookDirectory` (LedgerStateFix) — so each carries a typed
+    // prop and a guard. They stay in this list because the index-ownership
+    // property they demonstrate is unchanged: each still belongs to exactly
+    // one transaction. `WalletSize` is the one that remains unmodelled.
+    const PROTOCOL_FIELDS: ReadonlyArray<readonly [string, string, string]> = [
       ['WalletLocator', 'AccountSet', 'SetRegularKey'],
       ['WalletSize', 'AccountSet', 'SetRegularKey'],
       ['NFTokenMinter', 'AccountSet', 'SetRegularKey'],
       ['BookDirectory', 'LedgerStateFix', 'AccountSet'],
     ];
 
-    it.each(PROTOCOL_ONLY)(
+    it.each(PROTOCOL_FIELDS)(
       '%s is indexed against its owning transaction, not ours',
       (field, owner, other) => {
         expect(FIELD_OWNERS[field as keyof typeof FIELD_OWNERS].has(owner)).toBe(true);
@@ -115,14 +121,30 @@ describe('field ownership index (Bug #11)', () => {
     );
 
     it('accepts a protocol-only field on the transaction that owns it', () => {
-      const tx = accountSet({ Account: ACCOUNT, WalletLocator: { Account: DESTINATION, URI: 'x' } });
-      expect(tx.toJSON().WalletLocator).toEqual({ Account: DESTINATION, URI: 'x' });
+      // `WalletSize` is the one field of the four the library still does not
+      // model. It is a real AccountSet field (UInt32) that rippled accepts on
+      // the wire but that no transactor ever reads, so there is nothing to
+      // guard beyond its shape — the library passes it through.
+      const tx = accountSet({ Account: ACCOUNT, WalletSize: 15 });
+      expect(tx.toJSON().WalletSize).toBe(15);
     });
 
     it('rejects a protocol-only field on a transaction that does not', () => {
       expect(() =>
-        setRegularKey({ Account: ACCOUNT, WalletLocator: { Account: DESTINATION, URI: 'x' } }),
+        setRegularKey({ Account: ACCOUNT, WalletSize: 15 }),
       ).toThrow(/It belongs to: AccountSet/);
+    });
+
+    it('rejects a modelled field in the wrong shape on the transaction that owns it', () => {
+      // `WalletLocator` is a uint256 — 64 hex characters. An object is not a
+      // value rippled can parse, so the factory refuses it at construction
+      // rather than letting the codec fail later with a less specific error.
+      expect(() =>
+        accountSet({
+          Account: ACCOUNT,
+          WalletLocator: { Account: DESTINATION, URI: 'x' } as never,
+        }),
+      ).toThrow(/WalletLocator must be a 64-character hex string/);
     });
   });
 
@@ -131,8 +153,10 @@ describe('field ownership index (Bug #11)', () => {
       // Regression guard (2026-10-07): AccountSet used to declare
       // NFTokenBrokerFee, which the protocol puts ONLY on NFTokenAcceptOffer.
       // The union index then had to list AccountSet as an owner, so the index
-      // itself encoded the error. WalletLocator is the honest version of this
-      // case: a protocol-only field on the one transaction that owns it.
+      // itself encoded the error. `WalletSize` is the honest version of this
+      // case: a protocol field on the one transaction that owns it, which the
+      // library therefore still accepts there. (`WalletLocator` used to be
+      // that example; the library now models it, so it is guarded instead.)
       const tx = accountSet({ Account: ACCOUNT, WalletSize: 15 });
       expect(tx.toJSON().WalletSize).toBe(15);
     });

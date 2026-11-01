@@ -117,12 +117,37 @@ describe('fp/ledgerStateFix()', () => {
       ).toThrow(/UInt16/);
     });
 
-    it('accepts LedgerFixType = 65535 (UInt16 max)', () => {
-      const tx = ledgerStateFix({
-        Account: SENDER,
-        LedgerFixType: 0xffff,
-      });
-      expect(tx.LedgerFixType).toBe(0xffff);
+    it('throws when LedgerFixType is a valid UInt16 but not a known fix type', () => {
+      // The UInt16 range is wider than the set of fix types the ledger
+      // implements: rippled switches on the value and returns
+      // `tefINVALID_LEDGER_FIX_TYPE` for anything outside {1, 2}.
+      expect(() =>
+        ledgerStateFix({
+          Account: SENDER,
+          LedgerFixType: 0xffff,
+          Owner: NFTOKEN_OWNER,
+        }),
+      ).toThrow(/must be 1 .* or 2/);
+    });
+
+    it('throws when LedgerFixType is 0', () => {
+      expect(() =>
+        ledgerStateFix({
+          Account: SENDER,
+          LedgerFixType: 0,
+          Owner: NFTOKEN_OWNER,
+        }),
+      ).toThrow(/must be 1 .* or 2/);
+    });
+
+    it('throws when LedgerFixType is 3 (a type the ledger has not shipped)', () => {
+      expect(() =>
+        ledgerStateFix({
+          Account: SENDER,
+          LedgerFixType: 3,
+          Owner: NFTOKEN_OWNER,
+        }),
+      ).toThrow(/must be 1 .* or 2/);
     });
 
     it('throws when LedgerFixType is not an integer (1.5)', () => {
@@ -146,16 +171,6 @@ describe('fp/ledgerStateFix()', () => {
       ).toThrow(/Owner is required/);
     });
 
-    it('accepts Owner being omitted for non-1 LedgerFixType', () => {
-      // Future fix types may not require Owner. The factory must not
-      // enforce an Owner requirement unconditionally.
-      const tx = ledgerStateFix({
-        Account: SENDER,
-        LedgerFixType: 2,
-      });
-      expect(tx.Owner).toBeUndefined();
-    });
-
     it('throws when Owner is not a valid XRPL address', () => {
       expect(() =>
         ledgerStateFix({
@@ -164,6 +179,114 @@ describe('fp/ledgerStateFix()', () => {
           Owner: 'nope',
         }),
       ).toThrow(/classic or X-address/);
+    });
+  });
+
+  // ─── Fix-type field matrix ───
+  // rippled maps each fix type to exactly one fix-specific field and
+  // rejects the transaction unless that field is present and the other one
+  // is absent ("Each fix type allows exactly one fix-specific field" →
+  // `temINVALID`).
+  //   type 1 (NFToken-page-links) → requires Owner,   forbids BookDirectory
+  //   type 2 (book exchange rate) → requires BookDirectory, forbids Owner
+  // Source: rippled `src/libxrpl/tx/transactors/system/LedgerStateFix.cpp:27–30`,
+  // `:44–53`, `:76–79`.
+  describe('fix-type field matrix', () => {
+    const BOOK_DIRECTORY = 'ab'.repeat(32);
+
+    it('accepts type 1 with Owner and no BookDirectory', () => {
+      const tx = ledgerStateFix({
+        Account: SENDER,
+        LedgerFixType: 1,
+        Owner: NFTOKEN_OWNER,
+      });
+      expect(tx.Owner).toBe(NFTOKEN_OWNER);
+      expect(tx.BookDirectory).toBeUndefined();
+    });
+
+    it('accepts type 2 with BookDirectory and no Owner', () => {
+      const tx = ledgerStateFix({
+        Account: SENDER,
+        LedgerFixType: 2,
+        BookDirectory: BOOK_DIRECTORY,
+      });
+      expect(tx.BookDirectory).toBe(BOOK_DIRECTORY);
+      expect(tx.Owner).toBeUndefined();
+    });
+
+    it('throws when type 2 has no BookDirectory', () => {
+      expect(() =>
+        ledgerStateFix({
+          Account: SENDER,
+          LedgerFixType: 2,
+        }),
+      ).toThrow(/BookDirectory is required/);
+    });
+
+    it('throws when type 2 also carries Owner', () => {
+      expect(() =>
+        ledgerStateFix({
+          Account: SENDER,
+          LedgerFixType: 2,
+          Owner: NFTOKEN_OWNER,
+          BookDirectory: BOOK_DIRECTORY,
+        }),
+      ).toThrow(/Owner is not allowed/);
+    });
+
+    it('throws when type 1 also carries BookDirectory', () => {
+      expect(() =>
+        ledgerStateFix({
+          Account: SENDER,
+          LedgerFixType: 1,
+          Owner: NFTOKEN_OWNER,
+          BookDirectory: BOOK_DIRECTORY,
+        }),
+      ).toThrow(/BookDirectory is not allowed/);
+    });
+
+    it('throws when BookDirectory is not a 64-character hex string', () => {
+      expect(() =>
+        ledgerStateFix({
+          Account: SENDER,
+          LedgerFixType: 2,
+          BookDirectory: 'not-hex',
+        }),
+      ).toThrow(/64-character hex/);
+    });
+
+    it('throws when BookDirectory is not a string', () => {
+      expect(() =>
+        ledgerStateFix({
+          Account: SENDER,
+          LedgerFixType: 2,
+          BookDirectory: 123 as unknown as string,
+        }),
+      ).toThrow(/64-character hex/);
+    });
+
+    it('re-validates the matrix on .with()', () => {
+      const tx = ledgerStateFix({
+        Account: SENDER,
+        LedgerFixType: 1,
+        Owner: NFTOKEN_OWNER,
+      });
+      // Switching to type 2 without supplying BookDirectory is invalid.
+      expect(() => tx.with({ LedgerFixType: 2 })).toThrow(
+        /BookDirectory is required/,
+      );
+      // Supplying BookDirectory while the type is still 1 is invalid too.
+      expect(() => tx.with({ BookDirectory: BOOK_DIRECTORY })).toThrow(
+        /BookDirectory is not allowed/,
+      );
+      // And the valid switch succeeds.
+      const next = tx.with({
+        LedgerFixType: 2,
+        BookDirectory: BOOK_DIRECTORY,
+        Owner: undefined,
+      });
+      expect(next.BookDirectory).toBe(BOOK_DIRECTORY);
+      expect(next.Owner).toBeUndefined();
     });
   });
 
