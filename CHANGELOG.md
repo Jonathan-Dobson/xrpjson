@@ -13,6 +13,94 @@ a reader can tell a ledger-facing behaviour change from an internal cleanup.
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-11-01
+
+Closes the last two open items from the whole-project review in
+[`docs/audit/2026-11-01-code-quality-audit.md`](./docs/audit/2026-11-01-code-quality-audit.md),
+and fixes one new finding the review did not cover.
+
+### Added
+
+- **`accountSet` models `NFTokenMinter` and `WalletLocator`.** Both are real
+  AccountSet fields — `sfNFTokenMinter` (ACCOUNT) and `sfWalletLocator`
+  (UINT256) — that the library previously passed through unvalidated, so an
+  arbitrary value reached the wire. `NFTokenMinter` must be a valid address
+  (the same check xrpl.js applies at
+  `models/transactions/accountSet.ts:165,181`). `WalletLocator` must be a
+  64-character hex string; rippled reads it as a `uint256` and treats an
+  all-zero value as "unset the locator" rather than "set it to zero"
+  (`src/libxrpl/tx/transactors/account/AccountSet.cpp:428–442`).
+- **`ledgerStateFix` models `BookDirectory`.** The `uint256` key of the book
+  directory whose exchange rate needs fixing — the field fix type `2` exists
+  to carry (`src/libxrpl/tx/transactors/system/LedgerStateFix.cpp:107`).
+
+### Fixed
+
+**`accountSet` now enforces rippled's `NFTokenMinter` ↔
+`asfAuthorizedNFTokenMinter` coupling.** rippled requires the minter when the
+flag is set and forbids it when the flag is cleared; both mistakes are
+`temMALFORMED` at the ledger:
+
+```
+if (uSetFlag == asfAuthorizedNFTokenMinter && !tx.isFieldPresent(sfNFTokenMinter))
+    return temMALFORMED;
+if (uClearFlag == asfAuthorizedNFTokenMinter && tx.isFieldPresent(sfNFTokenMinter))
+    return temMALFORMED;
+```
+
+— rippled `src/libxrpl/tx/transactors/account/AccountSet.cpp:159–163`. The
+factory checked neither, so `accountSet({ Account, SetFlag: 10 })` constructed
+successfully and the ledger rejected it. xrpl.js models the field and checks
+its shape but not the coupling.
+
+**`ledgerStateFix` now enforces rippled's fix-type rules.** The factory
+accepted any UInt16 as `LedgerFixType`, and accepted either fix-specific
+field on either fix type. rippled implements exactly two fix types and
+requires each to carry exactly one fix-specific field — its own, present, and
+the other one absent:
+
+| `LedgerFixType` | Requires | Forbids |
+|---|---|---|
+| `1` — NFToken-page-links | `Owner` | `BookDirectory` |
+| `2` — book exchange rate | `BookDirectory` | `Owner` |
+
+Sources: rippled
+`include/xrpl/tx/transactors/system/LedgerStateFix.h:19–22` (the fix types),
+`src/libxrpl/tx/transactors/system/LedgerStateFix.cpp:27–30` (`kLedgerFixFields`),
+`:44–53` (`hasUnexpectedFixField`), `:58–74` (`tefINVALID_LEDGER_FIX_TYPE` for
+an unknown type) and `:76–79` (`temINVALID` for the wrong fix-specific field).
+
+**This is a behaviour change.** A `ledgerStateFix` that previously
+constructed and then failed at the ledger now fails at construction. Three
+cases are newly rejected: a `LedgerFixType` outside `{1, 2}`, a type-1 fix
+carrying `BookDirectory`, and a type-2 fix carrying `Owner` (or missing
+`BookDirectory`). `LedgerFixType: 65535` used to construct; it no longer
+does.
+
+Note that the xrpl-dev-portal reference page for this transaction still
+documents only fix type `1` and does not mention `BookDirectory` — it trails
+the ledger, which has shipped type `2` (`BookExchangeRate`) behind the
+`fixCleanup3_2_0` amendment. The library follows the ledger.
+
+### Changed
+
+- **`accountSet` now rejects a `WalletLocator` that is not a 64-character hex
+  string.** The field was previously unmodelled, so it passed through
+  unchecked — including as an object, which rippled cannot parse as a
+  `uint256`. One test in `tests/fp/field-index.test.ts` pinned that
+  unvalidated shape; it now pins the shape the ledger accepts.
+- **The field-index divergence report shrank from four protocol-only fields to
+  one.** `NFTokenMinter`, `WalletLocator` and `BookDirectory` are now modelled,
+  so `WalletSize` is the only field the protocol contributes that the library
+  does not model. It stays unmodelled deliberately: it is a real AccountSet
+  field (UInt32) that the codec accepts on the wire but that **no rippled
+  transactor ever reads**, so a typed prop and a guard for it would describe a
+  field with no effect. The reason is recorded in `account-set.ts`.
+
+Tests: 4,126 → 4,149. New coverage in `tests/fp/account-set.test.ts`
+(the `NFTokenMinter` and `WalletLocator` blocks) and
+`tests/fp/ledger-state-fix.test.ts` (the *fix-type field matrix* block).
+
 ## [1.5.1] — 2026-11-01
 
 ### Fixed
