@@ -30,7 +30,7 @@ original text were wrong and are corrected in place.
 | P2-1 | The README's tree-shaking claim is overstated | **Fixed in 1.5.0** — the README now states what actually ships; `sideEffects: false` added; the type-only assert file no longer ships |
 | P2-2 | The README's "`## Divergences` header" claim is false for four factories | **Fixed in 1.5.0** — all 79 now carry a `## Divergences` block |
 | P3 | Stale generator rationale; the divergence report was only printed | **Fixed in 1.5.0** — comment corrected, report written to `docs/field-index-divergences.md` |
-| **new** | `ammDeposit` does not implement rippled's per-deposit-mode field rules | **Open** — recorded as P2-4 below with a drill-deeper list |
+| **new** | `ammDeposit` does not implement rippled's per-deposit-mode field rules | **Fixed in 1.5.1** — the full per-mode matrix is enforced; see P2-3 |
 
 Two claims in the original text were wrong, and are corrected in place:
 
@@ -605,10 +605,11 @@ contributor reading one factory in isolation.
 
 ### P2-3 · `ammDeposit` does not implement rippled's per-deposit-mode field rules
 
-> **Status — Open. Found during this review, not fixed.** Recorded here
-> because it was discovered while implementing the P1-1 `TradingFee` rule, and
-> it belongs to the same family of problems: the library models a subset of
-> rippled's preclaim rules for this transaction type.
+> **Status — Fixed in 1.5.1.** The factory now enforces rippled's per-mode
+> matrix, which subsumes the three generic cross-field rules it used to
+> check. It was found during this review, while implementing the P1-1
+> `TradingFee` rule, and belongs to the same family of problems: the library
+> models a subset of rippled's preclaim rules for this transaction type.
 
 **Concern.** rippled's `AMMDeposit::preflight` has a *per-mode* field
 combination table — which of `Amount`, `Amount2`, `EPrice`, `LPTokenOut` and
@@ -654,6 +655,43 @@ The blast radius is `ammDeposit` only.
   the factory's `## Divergences` block.
 - Note that `tfTwoAssetIfEmpty` also requires `Amount2` (rippled line 110),
   which the library does not check for any mode.
+
+**Resolution taken (1.5.1).** The matrix is implemented as a table — one row
+per mode, naming the fields it requires and forbids — and it replaces the
+three generic cross-field rules the factory used to check (`Amount` with
+`Amount2`, `Amount` with `EPrice`, and at least one of `LPTokenOut` or
+`Amount`). Every combination those three rejected is rejected by the matrix
+too, so nothing is lost; what is gained is that the message names the mode
+and the offending field, and that the rules the generic form could not
+express — `tfTwoAsset` forbids `EPrice`, `tfSingleAsset` forbids `Amount2`,
+`tfLimitLPToken` forbids `LPTokenOut`, and `tfLPToken` requires `Amount` and
+`Amount2` together or not at all — are now caught.
+
+Two design notes:
+
+- The **forbidden check runs before the required check**. A field the mode
+  forbids has to be removed regardless of what else is wrong, whereas a
+  missing required field might be satisfied by a different valid shape.
+  Telling a caller to add `Amount` when `Amount2` is also present would
+  only lead them to a second error. rippled combines both into one
+  condition and so does not answer the question.
+- The **six mode bits are now named constants** rather than literals
+  repeated across the flag mask, `flagsToNumber`, and the matrix. The same
+  six values appeared in three places that had to agree, and a literal
+  repeated three times is how they drift apart.
+
+Three pre-existing tests asserted behaviour rippled rejects — a
+`tfTwoAsset` deposit carrying `EPrice`, a shared `make()` helper that
+satisfied none of the six modes, and the generic "at least LPTokenOut or
+Amount" message. They were updated to the protocol's rules; the intent
+behind each was preserved.
+
+Regression coverage: `tests/fp/amm-deposit.test.ts` gained a
+*deposit-mode field matrix* block that drives the matrix from a
+transcription of rippled's branches — every mode's minimal valid shape is
+accepted, every field each mode forbids is rejected, every required field is
+enforced when missing, and `tfLPToken`'s together-or-neither rule is checked
+in all four combinations. Tests: 4,119 → 4,126.
 
 ---
 
@@ -701,7 +739,7 @@ The blast radius is `ammDeposit` only.
 | 9 | Amend `README.md:29-31` on tree-shaking | P2 | ~10 min | **Done** — the README now says what actually ships |
 | 10 | Fix the stale rationale in `scripts/gen-field-index.mjs` | P3 | ~5 min | **Done** |
 | 11 | Persist the generator's protocol-divergence report | P3 | ~30 min | **Done** — `docs/field-index-divergences.md` |
-| 12 | Implement rippled's per-deposit-mode field rules in `ammDeposit` | P2 | ~3 h | **Open** — see P2-3 |
+| 12 | Implement rippled's per-deposit-mode field rules in `ammDeposit` | P2 | ~3 h | **Done in 1.5.1** — the matrix subsumes the three generic cross-field rules |
 | 13 | Emit the index as one module per field | P2 | ~3 h | **Open** — a size optimisation, not a correctness one |
 | 14 | Model `AccountSet`'s three protocol-only fields, and `LedgerStateFix.BookDirectory` | P2 | ~4 h | **Open** — new feature work, not a fix |
 
@@ -757,7 +795,7 @@ via Rollup · generator regeneration diff · `npm pack --dry-run`
   and `src/transactions/*.ts` (per-class field validation).
 
 **Verification after the remediation.** `npm run lint` exit 0 ·
-`npx tsc --noEmit` exit 0 · `npm test` **4,119 passed** across 81 files ·
+`npx tsc --noEmit` exit 0 · `npm test` **4,126 passed** across 81 files ·
 `npm run check:field-index` exit 0 (the committed index, the assertion file and
 the divergence report all match a fresh generator run) ·
 `npm pack --dry-run` ships 372 files with no `field-index.assert.*`.
