@@ -22,7 +22,13 @@
  *   6. `.with()` overrides are checked too, so the throw cannot be bypassed.
  */
 import { describe, it, expect } from 'vitest';
-import { payment, accountSet, setRegularKey, sponsorshipTransfer } from '../../src/fp/index.js';
+import {
+  payment,
+  accountSet,
+  setRegularKey,
+  sponsorshipTransfer,
+  ticketCreate,
+} from '../../src/fp/index.js';
 import { FIELD_OWNERS, COMMON_FIELDS, assertKnownFields } from '../../src/fp/field-index.js';
 import { ValidationError } from '../../src/errors.js';
 
@@ -217,6 +223,73 @@ describe('field ownership index (Bug #11)', () => {
       for (const field of Object.keys(FIELD_OWNERS)) {
         expect(common.has(field), `${field} is common but indexed`).toBe(false);
       }
+    });
+  });
+
+  // `TransactionType` is factory-owned, not caller-owned. The props
+  // interfaces omit it so a TypeScript caller cannot set it — but the package
+  // ships JavaScript, and `buildFrozenTx` used to spread the caller's field
+  // set AFTER the factory's literal, so a JavaScript caller could make a
+  // frozen tx claim a type its own fields did not match.
+  describe('TransactionType is factory-owned', () => {
+    it('ignores a caller-supplied TransactionType', () => {
+      const tx = payment({
+        Account: ACCOUNT,
+        Destination: DESTINATION,
+        Amount: '1000',
+        TransactionType: 'OfferCreate',
+      } as never);
+      expect(tx.TransactionType).toBe('Payment');
+      expect(tx.toJSON().TransactionType).toBe('Payment');
+    });
+
+    it('ignores a caller-supplied TransactionType on every factory', () => {
+      // Spot-checked across families, because the hazard lives in the shared
+      // choke point rather than in any one factory.
+      const probes: Array<[string, string, () => { TransactionType: string }]> = [
+        ['payment', 'Payment', () => basePayment({ TransactionType: 'OfferCreate' })],
+        [
+          'accountSet',
+          'AccountSet',
+          () => accountSet({ Account: ACCOUNT, TransactionType: 'Payment' } as never),
+        ],
+        [
+          'setRegularKey',
+          'SetRegularKey',
+          () => setRegularKey({ Account: ACCOUNT, TransactionType: 'Payment' } as never),
+        ],
+        [
+          'ticketCreate',
+          'TicketCreate',
+          () =>
+            ticketCreate({
+              Account: ACCOUNT,
+              TicketCount: 1,
+              TransactionType: 'Payment',
+            } as never),
+        ],
+      ];
+      for (const [name, expected, build] of probes) {
+        expect(build().TransactionType, name).toBe(expected);
+      }
+    });
+
+    it('does not let a tampered TransactionType survive .with()', () => {
+      const tx = basePayment({ TransactionType: 'OfferCreate' } as never);
+      expect(tx.with({ Fee: '12' }).TransactionType).toBe('Payment');
+    });
+
+    it('keeps the factory literal when the props bag carries one', () => {
+      // The props bag reaching the factory is the same bag the caller passed,
+      // so the literal must win at the build step regardless of the bag.
+      const tx = payment({
+        Account: ACCOUNT,
+        Destination: DESTINATION,
+        Amount: '1000',
+        TransactionType: 'OfferCreate',
+      } as never);
+      expect(Object.keys(tx.toJSON())[0]).toBe('TransactionType');
+      expect(tx.toJSON().TransactionType).toBe('Payment');
     });
   });
 });

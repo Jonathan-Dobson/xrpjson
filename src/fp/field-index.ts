@@ -59,7 +59,7 @@ export type CommonField = (typeof COMMON_FIELDS)[number];
 
 /**
  * Transaction types that accept each field. Built from 143 field
- * names (322 field/type pairs; 87 fields valid on exactly
+ * names (321 field/type pairs; 88 fields valid on exactly
  * one type), unioned across the 79 `XxxProps` interfaces and the protocol's
  * `TRANSACTION_FORMATS`.
  *

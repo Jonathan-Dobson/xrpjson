@@ -82,15 +82,40 @@ export function buildFrozenTx<TProps extends object, TTx>(
   for (const field of Object.keys(fields)) {
     assertKnownFields(txType, field);
   }
-  const data = Object.freeze({ TransactionType: txType, ...fields });
-  // TypeScript can't see that the spread of `data` (which IS TProps-shaped
+  // `TransactionType` belongs to the factory, not the caller.
+  //
+  // The field set is spread AFTER the literal, so without this a
+  // caller-supplied `TransactionType` would win: `offerCreate({ …,
+  // TransactionType: 'Payment' })` would return a frozen tx whose
+  // `TransactionType` is `'Payment'` while carrying OfferCreate's fields, and
+  // `toJSON()` would serialise that mismatch to the wire. The props
+  // interfaces omit `TransactionType`, which stops a TypeScript caller from
+  // doing this — but the package ships JavaScript, and a JavaScript caller has
+  // no such guard. Dropping it here closes the hole at the one choke point
+  // every factory and every `.with()` override passes through.
+  //
+  // The value is discarded rather than rejected: the factory's literal is
+  // authoritative, and `.with()` legitimately re-feeds the current tx's own
+  // `TransactionType` back through `mergeForWith` — throwing here would break
+  // every `.with()` call.
+  //
+  // The copy is built key by key rather than with a spread so the literal
+  // stays FIRST in the field order, the way every factory's `toJSON()` has
+  // always emitted it.
+  const data: Record<string, unknown> = { TransactionType: txType };
+  for (const [key, value] of Object.entries(fields as Record<string, unknown>)) {
+    if (key === 'TransactionType') continue;
+    data[key] = value;
+  }
+  const frozen = Object.freeze(data);
+  // TypeScript can't see that the spread of `frozen` (which IS TProps-shaped
   // minus TransactionType) plus the methods (which carry validate/toJSON/with)
   // produces a valid TTx (which is Readonly<TProps> + those methods).
   // The cast is safe by construction — see the type definitions in the
   // concrete factories (payment.ts, account-set.ts) for the structural
   // contract that backs this assertion.
   return Object.freeze({
-    ...data,
+    ...frozen,
     ...methods,
   }) as unknown as TTx;
 }
@@ -101,6 +126,12 @@ export function buildFrozenTx<TProps extends object, TTx>(
  * and hands the merged shape back to the factory to re-validate.
  *
  * Used as: `return payment(mergeForWith(this, overrides));`
+ *
+ * `TransactionType` is skipped when copying the current tx's keys. It is
+ * factory-owned (see `buildFrozenTx`), so re-feeding it into the props bag
+ * would only risk a stale literal reaching the base validator — and, on a tx
+ * whose type was tampered with, would carry the wrong type into the
+ * re-validation.
  */
 export function mergeForWith<TProps extends object>(
   current: Readonly<TProps>,
@@ -108,6 +139,7 @@ export function mergeForWith<TProps extends object>(
 ): TProps {
   const merged: Record<string, unknown> = {};
   for (const k of Object.keys(current)) {
+    if (k === 'TransactionType') continue;
     const v = (current as Record<string, unknown>)[k];
     if (typeof v !== 'function') merged[k] = v;
   }
