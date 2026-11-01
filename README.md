@@ -100,6 +100,14 @@ adds beyond the Class API's equivalent. Examples:
   XRPL accounts, `SignatureReward` / `MinAccountCreateAmount` as
   strictly positive XRP drops strings (XLS-38 §2.1.1.1.3/1.4),
   `Account === LockingChainDoor` equality.
+- **`accountSet`**: `NFTokenMinter` must be a valid address, is
+  **required** when `SetFlag` is `asfAuthorizedNFTokenMinter` (10) and
+  **forbidden** when `ClearFlag` is — rippled rejects both mistakes with
+  `temMALFORMED`. `WalletLocator` must be a 64-char hex `uint256`.
+- **`ledgerStateFix`**: `LedgerFixType` must be a fix type the ledger
+  actually implements (1 = NFToken-page-links, 2 = book exchange rate),
+  and each fix type carries exactly one fix-specific field — `Owner` for
+  type 1, `BookDirectory` for type 2 — so the other one must be absent.
 
 Every divergence is cited: file path + line number in
 [xrpl.js](https://github.com/XRPLF/xrpl.js),
@@ -302,7 +310,7 @@ fresh. Read it before your first change.
 | [`CONTEXT.md`](./CONTEXT.md) | Glossary of the terms the factory docstrings use without defining — *frozen tx*, *divergence*, *preclaim*, *Class API*, *Source* vs *Cross-ref* |
 | [`docs/adr/`](./docs/adr/) | Architecture decisions: functional API over the class API, the frozen shape, XLS-spec precedence, and the rippled citation convention |
 | [`docs/audit/`](./docs/audit/) | Audits — what was checked, against which pinned sources, and what was corrected |
-| [`docs/audit/2026-11-01-code-quality-audit.md`](./docs/audit/2026-11-01-code-quality-audit.md) | Whole-project review of the 79 factories, the validation layer, the generated field-ownership index, and the package surface. Found **1 P0** — a caller could override `TransactionType` on any factory, so a frozen tx could claim a type its own fields did not match (fixed in 1.4.3) — plus 3 P1 and 2 P2 findings on validation coverage, the generator's drift guards, and the README's tree-shaking claim. **All remediated in 1.4.3 / 1.5.0 / 1.5.1** — including the new P2 it surfaced (rippled's per-deposit-mode field rules in `ammDeposit`) |
+| [`docs/audit/2026-11-01-code-quality-audit.md`](./docs/audit/2026-11-01-code-quality-audit.md) | Whole-project review of the 79 factories, the validation layer, the generated field-ownership index, and the package surface. Found **1 P0** — a caller could override `TransactionType` on any factory, so a frozen tx could claim a type its own fields did not match (fixed in 1.4.3) — plus 3 P1 and 2 P2 findings on validation coverage, the generator's drift guards, and the README's tree-shaking claim. **All remediated in 1.4.3 / 1.5.0 / 1.5.1 / 1.6.0** — including the two findings the review surfaced: rippled's per-deposit-mode field rules in `ammDeposit` (1.5.1) and `LedgerStateFix`'s fix-type rules (1.6.0) |
 | [`docs/field-index-divergences.md`](./docs/field-index-divergences.md) | Generated: the standing list of fields the XRP Ledger accepts but this library does not model, and where the field-ownership index catches them. Regenerated and diff-checked by CI |
 | [`docs/audit/2026-10-02-flag-contradiction-audit.md`](./docs/audit/2026-10-02-flag-contradiction-audit.md) | Flag audit of all 63 `Flags`-bearing factories. Found **3 defects** — all cases where a factory rejected input rippled accepts — and fixed them: `sponsorshipTransfer` refused `spfSponsorFee`, `mptokenIssuanceCreate` ignored boolean-map `Flags`, `nftokenMint` refused `TransferFee: 0`. Also records the gaps (46 factories reason about flags not at all) and corrects the "7 of 63 validate" count, which was a grep artifact — 17 read `Flags` at runtime |
 

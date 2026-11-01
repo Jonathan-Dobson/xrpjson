@@ -17,20 +17,23 @@ exit 0 · `npm test` **4,085 passed** across 80 files.
 
 ## Resolution
 
-Every finding below was remediated in **1.4.3** and **1.5.0**. The findings
-are kept below as written, with the outcome noted on each; two claims in the
-original text were wrong and are corrected in place.
+Every finding below was remediated in **1.4.3**, **1.5.0** and **1.5.1**; the
+last two open items — the four protocol-only fields, and the `LedgerStateFix`
+fix-type rules — were closed in **1.6.0**. The findings are kept below as
+written, with the outcome noted on each; two claims in the original text were
+wrong and are corrected in place.
 
 | # | Finding | Outcome |
 |---|---|---|
 | P0-1 | A caller could override `TransactionType` on any factory | **Fixed in 1.4.3** — closed at the shared choke point, 4 regression tests |
-| P1-1 | 10 (field, transaction) pairs reach the wire unvalidated | **Fixed in 1.5.0** — 7 of the 10 pairs now have real guards (`Payment.CredentialIDs`, `Payment.DomainID`, `AMMDeposit.TradingFee`); the remaining 3 pairs are fields the library does not model at all, and are now recorded in a committed gap report |
+| P1-1 | 10 (field, transaction) pairs reach the wire unvalidated | **Fixed in 1.5.0** — 7 of the 10 pairs now have real guards (`Payment.CredentialIDs`, `Payment.DomainID`, `AMMDeposit.TradingFee`); the remaining 3 pairs are fields the library does not model at all, and are now recorded in a committed gap report. **Closed in 1.6.0** — see below |
 | P1-2 | 8 of 79 factories do not validate `Account` as an XRPL address | **Fixed in 1.5.0** — all 79 now use `isAccount`; a repo-wide invariant test enforces it |
 | P1-3 | The generated index has no guard that it matches its generator | **Fixed in 1.5.0** — CI regenerates and diffs; the codec is pinned as an explicit dependency |
 | P2-1 | The README's tree-shaking claim is overstated | **Fixed in 1.5.0** — the README now states what actually ships; `sideEffects: false` added; the type-only assert file no longer ships |
 | P2-2 | The README's "`## Divergences` header" claim is false for four factories | **Fixed in 1.5.0** — all 79 now carry a `## Divergences` block |
 | P3 | Stale generator rationale; the divergence report was only printed | **Fixed in 1.5.0** — comment corrected, report written to `docs/field-index-divergences.md` |
 | **new** | `ammDeposit` does not implement rippled's per-deposit-mode field rules | **Fixed in 1.5.1** — the full per-mode matrix is enforced; see P2-3 |
+| **new** | `LedgerStateFix` accepts a fix type and field combination the ledger rejects | **Fixed in 1.6.0** — the fix-type matrix is enforced; see below |
 
 Two claims in the original text were wrong, and are corrected in place:
 
@@ -327,6 +330,58 @@ living in terminal scrollback: `docs/field-index-divergences.md`, generated
 by `scripts/gen-field-index.mjs`. After the three fields above were
 modelled, the generator's divergence report shrank from four transactions to
 two, and the ten pairs to four.
+
+**Resolution taken (1.6.0) — the four pairs closed.** The three pairs left
+open in 1.5.0 are now modelled and guarded, and the fourth is a deliberate
+decision rather than an omission.
+
+| Pair | Resolution |
+|---|---|
+| `AccountSet.NFTokenMinter` | **Now modelled and validated.** `AccountSetProps` gains `NFTokenMinter?: string`; validated as an address (`isAccount`), matching xrpl.js (`models/transactions/accountSet.ts:165,181`). rippled couples the field to `asfAuthorizedNFTokenMinter` (10): it is **required** when `SetFlag` is that flag and **forbidden** when `ClearFlag` is (`AccountSet.cpp:159–163`, both `temMALFORMED`). Both couplings are now enforced. |
+| `AccountSet.WalletLocator` | **Now modelled and validated.** `AccountSetProps` gains `WalletLocator?: string`; validated as a 64-character hex string. rippled reads it as a `uint256` (`sfields.macro:178`; `AccountSet.cpp:430`) and treats an all-zero value as "unset the locator" rather than "set it to zero". |
+| `AccountSet.WalletSize` | **Deliberately not modelled.** It is a real AccountSet field (`sfWalletSize`, UINT32) that the codec accepts on the wire, but **no rippled transactor ever reads it** — `grep -rn "WalletSize" src/` over rippled returns nothing outside the generated protocol accessors. Modelling it would expose a typed prop for a field with no effect and a guard for a value the ledger never inspects. It remains the library's only protocol-only field, and the reason is recorded in the factory's `## Divergences` block. |
+| `LedgerStateFix.BookDirectory` | **Now modelled and validated.** `LedgerStateFixProps` gains `BookDirectory?: string`; validated as a 64-character hex string (rippled reads it as a `uint256`, `LedgerStateFix.cpp:107`). It is the field fix type `2` requires — see the new finding below. |
+
+The generator's divergence report shrank again: one protocol-only field
+(`WalletSize`) instead of four, one transaction instead of two.
+
+### New finding — `LedgerStateFix` accepts fix types and field combinations the ledger rejects
+
+> **Status — Fixed in 1.6.0.** Not present in the original review; found while
+> modelling `BookDirectory`, which is the field fix type `2` exists to carry.
+
+**Concern.** The factory enforced `Owner` required when `LedgerFixType === 1`
+and nothing else about the fix type. It accepted **any** UInt16 as the fix
+type, and accepted either fix-specific field on either fix type.
+
+**Evidence.** rippled's `LedgerStateFix::preflight` switches on the fix type
+and rejects anything outside the set the ledger implements
+(`src/libxrpl/tx/transactors/system/LedgerStateFix.cpp:58–74`,
+`default: return tefINVALID_LEDGER_FIX_TYPE`), then enforces that each fix
+type carries exactly one fix-specific field — its own, present, and the other
+one absent (`kLedgerFixFields` at `:27–30`, `hasUnexpectedFixField` at
+`:44–53`, the `temINVALID` at `:76–79`):
+
+| `LedgerFixType` | Requires | Forbids |
+|---|---|---|
+| `1` — NFToken-page-links | `Owner` | `BookDirectory` |
+| `2` — book exchange rate | `BookDirectory` | `Owner` |
+
+So `LedgerFixType: 3` constructed successfully and was rejected by the
+ledger with `tefINVALID_LEDGER_FIX_TYPE`; so did a type-1 fix carrying
+`BookDirectory`, a type-2 fix carrying `Owner`, and a type-2 fix carrying
+neither. The factory's own doc comment already claimed the ledger rejected
+unknown fix types — the code did not enforce it.
+
+**Resolution taken (1.6.0).** `LedgerFixType` is now checked against the two
+fix types rippled implements (`LedgerFixType.h:19–22`), and the fix-type
+matrix is enforced: the required field must be present and the other one
+absent. `BookDirectory` is modelled and validated alongside it.
+
+Note that the xrpl-dev-portal reference page still documents only fix type
+`1` and does not mention `BookDirectory` — it trails the ledger, which has
+shipped type `2` (`BookExchangeRate`) behind the `fixCleanup3_2_0`
+amendment. The library follows the ledger, not the page.
 
 ### P1-2 · Eight factories do not validate `Account` as an XRPL address
 > **Status — Fixed in 1.5.0.** All 79 factories now check `Account` with
@@ -741,7 +796,8 @@ in all four combinations. Tests: 4,119 → 4,126.
 | 11 | Persist the generator's protocol-divergence report | P3 | ~30 min | **Done** — `docs/field-index-divergences.md` |
 | 12 | Implement rippled's per-deposit-mode field rules in `ammDeposit` | P2 | ~3 h | **Done in 1.5.1** — the matrix subsumes the three generic cross-field rules |
 | 13 | Emit the index as one module per field | P2 | ~3 h | **Open** — a size optimisation, not a correctness one |
-| 14 | Model `AccountSet`'s three protocol-only fields, and `LedgerStateFix.BookDirectory` | P2 | ~4 h | **Open** — new feature work, not a fix |
+| 14 | Model `AccountSet`'s three protocol-only fields, and `LedgerStateFix.BookDirectory` | P2 | ~4 h | **Done in 1.6.0** — `NFTokenMinter` and `WalletLocator` are modelled and guarded; `WalletSize` is deliberately left unmodelled (no rippled transactor reads it) and the reason is recorded |
+| 15 | Enforce rippled's `LedgerStateFix` fix-type rules | P1 | ~1 h | **Done in 1.6.0** — new finding; `LedgerFixType` is checked against the two implemented fix types and the fix-type field matrix is enforced |
 
 ---
 
