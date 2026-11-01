@@ -25,10 +25,15 @@
   },
   "files": [
     "dist",
+    "!dist/fp/field-index.assert.js",
+    "!dist/fp/field-index.assert.js.map",
+    "!dist/fp/field-index.assert.d.ts",
+    "!dist/fp/field-index.assert.d.ts.map",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
   ],
+  "sideEffects": false,
   "scripts": {
     "build": "tsc",
     "test": "node --experimental-vm-modules node_modules/.bin/vitest run",
@@ -36,6 +41,8 @@
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
     "clean": "rm -rf dist",
+    "gen:field-index": "node scripts/gen-field-index.mjs",
+    "check:field-index": "node scripts/gen-field-index.mjs && git diff --exit-code -- src/fp/field-index.ts src/fp/field-index.assert.ts docs/field-index-divergences.md",
     "prepublishOnly": "npm run clean && npm run lint && npm run test && npm run build"
   },
   "keywords": [
@@ -57,6 +64,7 @@
     "@eslint/js": "^9.39.5",
     "@types/node": "^25.6.2",
     "eslint": "^9.39.5",
+    "ripple-binary-codec": "2.11.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.1",
     "vitest": "^3.2.1",

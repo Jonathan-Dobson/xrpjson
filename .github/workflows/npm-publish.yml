@@ -25,6 +25,9 @@ jobs:
         with:
           node-version: 26
       - run: npm ci
+      # A release must not ship a field-ownership index that has drifted from
+      # the 79 props interfaces or the protocol's TRANSACTION_FORMATS table.
+      - run: npm run check:field-index
       - run: npm test
       - run: npm run lint
 

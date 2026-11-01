@@ -16,6 +16,12 @@ jobs:
         with:
           node-version: 26
       - run: npm ci
+      # The field-ownership index is a committed artifact generated from the
+      # 79 props interfaces and the protocol's TRANSACTION_FORMATS table.
+      # Regenerating and diffing fails the build if the committed copy has
+      # drifted from either source — the one drift nothing else can catch,
+      # because the compile-time assertions only cover the library half.
+      - run: npm run check:field-index
       - run: npm run lint
       - run: npm test
       - run: npm run build
