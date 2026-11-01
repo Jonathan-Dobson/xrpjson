@@ -29,7 +29,13 @@ import {
   sponsorshipTransfer,
   ticketCreate,
 } from '../../src/fp/index.js';
-import { FIELD_OWNERS, COMMON_FIELDS, assertKnownFields } from '../../src/fp/field-index.js';
+import {
+  FIELD_OWNERS,
+  COMMON_FIELDS,
+  TX_TYPES,
+  assertKnownFields,
+  fieldOwners,
+} from '../../src/fp/field-index.js';
 import { ValidationError } from '../../src/errors.js';
 
 const ACCOUNT = 'rf1BiGeXwwQoi8Z2ueFYTEXSwuJYfV2Jpn';
@@ -115,8 +121,8 @@ describe('field ownership index (Bug #11)', () => {
     it.each(PROTOCOL_FIELDS)(
       '%s is indexed against its owning transaction, not ours',
       (field, owner, other) => {
-        expect(FIELD_OWNERS[field as keyof typeof FIELD_OWNERS].has(owner)).toBe(true);
-        expect(FIELD_OWNERS[field as keyof typeof FIELD_OWNERS].has(other)).toBe(false);
+        expect(fieldOwners(field)).toContain(owner);
+        expect(fieldOwners(field)).not.toContain(other);
       },
     );
 
@@ -173,9 +179,9 @@ describe('field ownership index (Bug #11)', () => {
     });
 
     it('still accepts that field on NFTokenAcceptOffer, where the protocol puts it', () => {
-      const owners = FIELD_OWNERS.NFTokenBrokerFee;
-      expect(owners.has('AccountSet')).toBe(false);
-      expect(owners.has('NFTokenAcceptOffer')).toBe(true);
+      const owners = fieldOwners('NFTokenBrokerFee');
+      expect(owners).not.toContain('AccountSet');
+      expect(owners).toContain('NFTokenAcceptOffer');
     });
   });
 
@@ -231,14 +237,37 @@ describe('field ownership index (Bug #11)', () => {
 
   describe('index integrity', () => {
     it('has a non-empty owner set for every field', () => {
-      for (const [field, owners] of Object.entries(FIELD_OWNERS)) {
-        expect(owners.size, `${field} has no owners`).toBeGreaterThan(0);
+      for (const field of Object.keys(FIELD_OWNERS)) {
+        expect(fieldOwners(field).length, `${field} has no owners`).toBeGreaterThan(0);
       }
     });
 
     it('uses string transaction types as owners', () => {
-      for (const owners of Object.values(FIELD_OWNERS)) {
-        for (const owner of owners) expect(typeof owner).toBe('string');
+      for (const field of Object.keys(FIELD_OWNERS)) {
+        for (const owner of fieldOwners(field)) {
+          expect(typeof owner).toBe('string');
+        }
+      }
+    });
+
+    it('stores owner indices that all resolve to a transaction type', () => {
+      // The index stores an index into TX_TYPES rather than the type name, so
+      // every stored index must be in range — and must resolve to a name.
+      for (const field of Object.keys(FIELD_OWNERS)) {
+        const indices = FIELD_OWNERS[field as keyof typeof FIELD_OWNERS];
+        for (const i of indices) {
+          expect(Number.isInteger(i), `${field}[${i}] is not an index`).toBe(true);
+          expect(i).toBeGreaterThanOrEqual(0);
+          expect(i).toBeLessThan(TX_TYPES.length);
+          expect(typeof TX_TYPES[i]).toBe('string');
+        }
+      }
+    });
+
+    it('lists every owner in sorted order, as the error message expects', () => {
+      for (const field of Object.keys(FIELD_OWNERS)) {
+        const owners = fieldOwners(field);
+        expect([...owners].sort()).toEqual([...owners]);
       }
     });
 

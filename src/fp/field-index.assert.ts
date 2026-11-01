@@ -31,7 +31,11 @@
  * index entry and are excluded from the completeness scope for the same reason
  * `Fee` never appears in a props interface body — it is inherited.
  */
-import type { FIELD_OWNERS as Owners, CommonField } from './field-index.js';
+import type {
+  FIELD_OWNERS as Owners,
+  TX_TYPES as TxTypeNames,
+  CommonField,
+} from './field-index.js';
 /**
  * The three assertions below are written so the compiler NAMES the offender,
  * not just reports `false`. Each resolves to `true` when it holds, and to an
@@ -293,9 +297,14 @@ type TxType =
 /** Every non-common field name declared anywhere in the 79 props interfaces. */
 type AllOwnedFields = Exclude<UnionKeys<AnyProps>, CommonField | 'validate' | 'toJSON' | 'with'>;
 
-/** The element type of every owner set in the index. */
-type SetElement<S> = S extends ReadonlySet<infer T> ? T : never;
-type AllOwnerTxTypes = SetElement<(typeof Owners)[keyof typeof Owners]>;
+/**
+ * The element type of every owner set in the index. The index stores owner
+ * INDICES into `TX_TYPES`, so the owner type literals come from that tuple
+ * rather than from the per-field arrays — which lets the arrays stay plain
+ * `number[]` instead of carrying `as const` on every one of the 143
+ * entries, which is worth about a kilobyte in a consumer's bundle.
+ */
+type AllOwnerTxTypes = (typeof TxTypeNames)[number];
 
 /** Fields the protocol contributes that this library does not model. */
 type ProtocolOnlyFields =

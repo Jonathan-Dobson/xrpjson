@@ -281,9 +281,20 @@ for (const [field, types] of protocolOwners) {
 const protocolOnlyFields = [...protocolFields].filter((f) => !ownFieldSet.has(f)).sort();
 
 // ── 5. Derive the report ───────────────────────────────────────────────────
+// Every transaction type that owns at least one field, sorted. The index
+// stores owner INDICES into this tuple rather than repeating the type name
+// for every (field, type) pair — the same ~78 names appear across all
+// `pairCount` entries, and paying for them once instead of `pairCount` times
+// is most of the size difference.
+const txTypeNames = [
+  ...new Set([...owners.values()].flatMap((s) => [...s])),
+].sort();
+const txTypeIndex = new Map(txTypeNames.map((t, i) => [t, i]));
+const txTypeCount = txTypeNames.length;
+
 const rows = [...owners.entries()]  .sort(([a], [b]) => a.localeCompare(b))
   .map(([field, types]) =>
-    `  ${field}: new Set([${[...types].sort().map((t) => `'${t}'`).join(', ')}] as const),`)
+    `  ${field}: [${[...types].sort().map((t) => txTypeIndex.get(t)).join(', ')}],`)
   .join('\n');
 
 const fieldCount = owners.size;
@@ -440,10 +451,29 @@ ${commonFields.map((f) => `  '${f}',`).join('\n')}
 export type CommonField = (typeof COMMON_FIELDS)[number];
 
 /**
+ * Every transaction type that owns at least one field, sorted. The index
+ * stores owner INDICES into this tuple rather than repeating the type name
+ * for every (field, type) pair.
+ *
+ * WHY INDICES: the table has ${fieldCount} field names and ${pairCount}
+ * (field, type) pairs, and the type names dominate — the same ~78 names
+ * repeated across ${pairCount} entries. Storing an index instead turns each
+ * reference into one or two characters and pays for the ${txTypeCount} type
+ * names exactly once. That is the whole difference between a table that
+ * dominates a consumer's bundle and one that does not.
+ */
+export const TX_TYPES = [
+${txTypeNames.map((t) => `  '${t}',`).join('\n')}
+] as const;
+
+/**
  * Transaction types that accept each field. Built from ${fieldCount} field
  * names (${pairCount} field/type pairs; ${singleType} fields valid on exactly
  * one type), unioned across the 79 \`XxxProps\` interfaces and the protocol's
  * \`TRANSACTION_FORMATS\`.
+ *
+ * Each value is the list of indices into {@link TX_TYPES} that accept the
+ * field — the type names live in one place, so they are not repeated.
  *
  * Typed with \`satisfies\`, NOT \`Record<string, …>\`. A \`Record\` annotation
  * adds an index signature, which collapses \`keyof\` to \`string\` and silently
@@ -451,7 +481,7 @@ export type CommonField = (typeof COMMON_FIELDS)[number];
  */
 export const FIELD_OWNERS = {
 ${rows}
-} satisfies Record<string, ReadonlySet<string>>;
+} satisfies Record<string, readonly number[]>;
 
 /**
  * Reject a field that belongs to a different transaction type.
@@ -470,13 +500,26 @@ export function assertKnownFields(txType: string, field: string): void {
   // JavaScript caller controls, so it is not one of the table's literal keys.
   // A key that is not in the table at all resolves to undefined here, which is
   // the forward-compatibility case below.
-  const owners = (FIELD_OWNERS as Readonly<Record<string, ReadonlySet<string>>>)[field];
+  const owners = (FIELD_OWNERS as Readonly<Record<string, readonly number[]>>)[field];
   if (owners === undefined) return; // unmodelled field — forward-compat
-  if (owners.has(txType)) return;   // correct transaction
+  const names: string[] = owners.map((i) => TX_TYPES[i] as string);
+  if (names.includes(txType)) return;   // correct transaction
   throw new ValidationError(
     \`\${txType}: "\${field}" is not a field on this transaction. \` +
-      \`It belongs to: \${[...owners].sort().join(', ')}.\`,
+      \`It belongs to: \${names.sort().join(', ')}.\`,
   );
+}
+
+/**
+ * The transaction types that accept a field.
+ *
+ * Returns an empty list for a field the library does not model at all — the
+ * same forward-compatibility case \`assertKnownFields\` allows through.
+ */
+export function fieldOwners(field: string): readonly string[] {
+  const owners = (FIELD_OWNERS as Readonly<Record<string, readonly number[]>>)[field];
+  if (owners === undefined) return [];
+  return owners.map((i) => TX_TYPES[i] as string);
 }
 `;
 
@@ -534,7 +577,11 @@ const assertFile = `/**
  * index entry and are excluded from the completeness scope for the same reason
  * \`Fee\` never appears in a props interface body — it is inherited.
  */
-import type { FIELD_OWNERS as Owners, CommonField } from './field-index.js';
+import type {
+  FIELD_OWNERS as Owners,
+  TX_TYPES as TxTypeNames,
+  CommonField,
+} from './field-index.js';
 /**
  * The three assertions below are written so the compiler NAMES the offender,
  * not just reports \`false\`. Each resolves to \`true\` when it holds, and to an
@@ -562,9 +609,14 @@ ${txTypeUnion};
 /** Every non-common field name declared anywhere in the 79 props interfaces. */
 type AllOwnedFields = Exclude<UnionKeys<AnyProps>, CommonField | ${methodUnion}>;
 
-/** The element type of every owner set in the index. */
-type SetElement<S> = S extends ReadonlySet<infer T> ? T : never;
-type AllOwnerTxTypes = SetElement<(typeof Owners)[keyof typeof Owners]>;
+/**
+ * The element type of every owner set in the index. The index stores owner
+ * INDICES into \`TX_TYPES\`, so the owner type literals come from that tuple
+ * rather than from the per-field arrays — which lets the arrays stay plain
+ * \`number[]\` instead of carrying \`as const\` on every one of the ${fieldCount}
+ * entries, which is worth about a kilobyte in a consumer's bundle.
+ */
+type AllOwnerTxTypes = (typeof TxTypeNames)[number];
 
 /** Fields the protocol contributes that this library does not model. */
 type ProtocolOnlyFields =
