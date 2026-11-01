@@ -35,8 +35,19 @@ One shared module does not tree-shake: the **field-ownership index**, a
 table mapping each of the 143 ledger field names to the transaction types
 that accept it. It is what lets a factory reject a field that belongs to
 a different transaction, and catching that requires knowing every field
-on every type — so it ships in full (about 12 KB of a Payment-only
-bundle). The package is still zero runtime dependencies.
+on every type — so it ships in full. It is stored as compactly as the data
+allows: the 78 transaction type names live in one tuple, and each field
+holds indices into it, rather than repeating a type name for each of the
+321 (field, type) pairs.
+
+Measured with Rollup, bundling an entry that imports only `payment`:
+
+| | before | after |
+|---|---|---|
+| field-ownership index | 13.4 KB / 9.6 KB minified | 9.8 KB / 4.8 KB minified |
+| Payment-only bundle | 32.2 KB / 14.3 KB minified | 28.6 KB / 9.6 KB minified |
+
+The package is still zero runtime dependencies.
 
 ## What it covers
 

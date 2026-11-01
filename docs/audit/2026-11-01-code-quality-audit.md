@@ -17,11 +17,12 @@ exit 0 · `npm test` **4,085 passed** across 80 files.
 
 ## Resolution
 
-Every finding below was remediated in **1.4.3**, **1.5.0** and **1.5.1**; the
-last two open items — the four protocol-only fields, and the `LedgerStateFix`
-fix-type rules — were closed in **1.6.0**. The findings are kept below as
-written, with the outcome noted on each; two claims in the original text were
-wrong and are corrected in place.
+Every finding below was remediated in **1.4.3**, **1.5.0**, **1.5.1** and
+**1.6.0**; the last two open items — the four protocol-only fields, and the
+`LedgerStateFix` fix-type rules — were closed in **1.6.0**, and the
+field-index size question was closed in **1.6.1**. The findings are kept
+below as written, with the outcome noted on each; two claims in the original
+text were wrong and are corrected in place.
 
 | # | Finding | Outcome |
 |---|---|---|
@@ -34,6 +35,7 @@ wrong and are corrected in place.
 | P3 | Stale generator rationale; the divergence report was only printed | **Fixed in 1.5.0** — comment corrected, report written to `docs/field-index-divergences.md` |
 | **new** | `ammDeposit` does not implement rippled's per-deposit-mode field rules | **Fixed in 1.5.1** — the full per-mode matrix is enforced; see P2-3 |
 | **new** | `LedgerStateFix` accepts a fix type and field combination the ledger rejects | **Fixed in 1.6.0** — the fix-type matrix is enforced; see below |
+| **new** | The field-ownership index ships in full; the proposed per-field split cannot fix it | **Fixed in 1.6.1** — the table was re-encoded and halved; the proposed split is disproved with measurements |
 
 Two claims in the original text were wrong, and are corrected in place:
 
@@ -564,13 +566,14 @@ no signal in the build.
 ## P2 — medium-priority quality
 
 ### P2-1 · The README's tree-shaking claim is overstated, measurably
-> **Status — Partly fixed in 1.5.0.** The README now states what actually
+> **Status — Fixed in 1.5.0 and 1.6.1.** The README now states what actually
 > ships, `sideEffects: false` is set, and the type-only assert file is
-> excluded from the tarball. The measured table size is unchanged — the
-> cross-type field index cannot tree-shake, because catching a field used
-> on the wrong transaction requires knowing every field on every type.
-> The per-field module split below is therefore still open as an option,
-> but it is a *size* optimisation, not a correctness one.
+> excluded from the tarball. The measured table size was still unchanged
+> after 1.5.0 — the cross-type field index cannot tree-shake, because
+> catching a field used on the wrong transaction requires knowing every
+> field on every type. In 1.6.1 the table was re-encoded and halved; see
+> the new finding at the end of this section. The per-field module split
+> proposed below was measured and disproved.
 
 **Concern.** `README.md:29-31`:
 
@@ -624,6 +627,77 @@ Two smaller points in the same area:
 - Exclude `field-index.assert.*` from the published files. `files` in
   `package.json` is `["dist", …]`; the assert file needs an explicit
   exclusion, and `tsconfig.json` would need the emit skipped.
+
+**Resolution taken (1.5.0).** The claim was amended to say what actually
+ships, `"sideEffects": false` was added, and the assert file was excluded
+from the tarball. The *measured table size* was left unchanged at the time,
+on the reasoning that the cross-type table cannot tree-shake. That reasoning
+about tree-shaking was right; the conclusion that nothing could be done about
+the size was wrong — see the new finding below.
+
+### New finding — the "one module per field" remedy cannot work, but a compact encoding can
+> **Status — Fixed in 1.6.1.** The remedy this audit proposed for row 13 is
+> disproved below, with measurements. A different mechanism — re-encoding the
+> same table — halves it.
+
+**Concern.** Row 13 proposed emitting the index as one module per field
+(`field-owners/<Field>.js`), on the reasoning that "a bundler keeps only the
+fields the consumer's factory actually declares — roughly 15 of 143 for a
+Payment consumer".
+
+**Why that cannot work.** The index has two jobs, and the split breaks the
+second one:
+
+1. **Reject** a field that belongs to a *different* transaction.
+2. **Allow** a field the library does not model at all — the
+   forward-compatibility hatch, so a genuinely-new amendment field is not
+   refused just because the library has not caught up with it.
+
+Job 2 is what makes job 1 possible: a field is rejected only when it is
+*known* and *not ours*, so distinguishing "known but foreign" from "unknown"
+requires the **complete universe of field names the library knows** — all
+143, not the 15 the consumer's factory declares. A Payment-only consumer
+that imported only its own 15 field modules would find nothing for
+`DestinationTag`, treat it as unknown, and **allow it through** — silently
+losing the catch surface the index exists to provide.
+
+So the universe is irreducible for the reject decision, and any design that
+keeps the full catch surface ships all 143 field names whatever else it
+does. Splitting into 143 modules also adds per-module overhead: measured,
+143 one-field modules came to **14,717 B raw** against the single table's
+11,364 B — *worse*, before any tree-shaking is considered.
+
+**What actually helps.** The table's size is dominated by **repeated type
+names**: 143 field names plus 321 (field, type) pairs, where the same ~78
+type names appear across all 321 entries. Storing an *index* into a shared
+type-name tuple instead of the name itself turns each reference into one or
+two characters and pays for the 78 names exactly once. Nothing about the
+decisions changes; only the encoding does.
+
+**Resolution taken (1.6.1).** The index now stores owner indices into a
+`TX_TYPES` tuple. Measured with Rollup on an entry that imports only
+`payment`, against the published 1.6.0 as the baseline:
+
+| | before | after |
+|---|---|---|
+| field-ownership index | 13,377 B / 9,556 B minified | 9,830 B / 4,849 B minified |
+| Payment-only bundle | 32,154 B / 14,300 B minified | 28,607 B / 9,593 B minified |
+
+**The behaviour is unchanged, and that was verified rather than assumed:**
+5,616 (transaction type, field name) pairs were compared against the
+published 1.6.0 implementation — every accept/reject decision *and* every
+error message string is identical.
+
+Two notes for a future reader:
+
+- The index still ships in full. It cannot tree-shake, for the reason above.
+  What changed is how much of it there is.
+- The floor for this table, keeping the "it belongs to: AccountSet" hint in
+  the error message, is about 4.4 KB of data: the 143 field names, the 321
+  owner references, and the 78 type names. Dropping the hint would save the
+  type names and the owner references — but the error message is the
+  library's most valuable diagnostic, so the hint was kept.
+
 
 ### P2-2 · The README's "`## Divergences` header" claim is false for four factories
 > **Status — Fixed in 1.5.0.** All 79 factories now carry a `## Divergences`
@@ -795,7 +869,7 @@ in all four combinations. Tests: 4,119 → 4,126.
 | 10 | Fix the stale rationale in `scripts/gen-field-index.mjs` | P3 | ~5 min | **Done** |
 | 11 | Persist the generator's protocol-divergence report | P3 | ~30 min | **Done** — `docs/field-index-divergences.md` |
 | 12 | Implement rippled's per-deposit-mode field rules in `ammDeposit` | P2 | ~3 h | **Done in 1.5.1** — the matrix subsumes the three generic cross-field rules |
-| 13 | Emit the index as one module per field | P2 | ~3 h | **Open** — a size optimisation, not a correctness one |
+| 13 | Emit the index as one module per field | P2 | ~3 h | **Done in 1.6.1 — by a different mechanism.** The per-field split cannot work: see the new finding below. The index was re-encoded to hold owner *indices* into a shared type-name tuple, which halves it. |
 | 14 | Model `AccountSet`'s three protocol-only fields, and `LedgerStateFix.BookDirectory` | P2 | ~4 h | **Done in 1.6.0** — `NFTokenMinter` and `WalletLocator` are modelled and guarded; `WalletSize` is deliberately left unmodelled (no rippled transactor reads it) and the reason is recorded |
 | 15 | Enforce rippled's `LedgerStateFix` fix-type rules | P1 | ~1 h | **Done in 1.6.0** — new finding; `LedgerFixType` is checked against the two implemented fix types and the fix-type field matrix is enforced |
 
