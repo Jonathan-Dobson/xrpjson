@@ -13,6 +13,62 @@ a reader can tell a ledger-facing behaviour change from an internal cleanup.
 
 ## [Unreleased]
 
+## [1.4.3] — 2026-11-01
+
+### Fixed
+
+**A caller could override `TransactionType` on any factory.** `buildFrozenTx`
+spread the caller's field set *after* the factory's transaction-type literal,
+so a caller-supplied `TransactionType` won:
+
+```js
+offerCreate({
+  Account: 'r…',
+  TakerGets: '1000000',
+  TakerPays: { currency: 'USD', issuer: 'r…', value: '1' },
+  TransactionType: 'Payment',   // ← injected
+});
+// → tx.TransactionType === 'Payment'
+// → tx.toJSON().TransactionType === 'Payment'
+```
+
+The frozen tx then claimed to be a `Payment` while carrying `OfferCreate`'s
+fields, and `toJSON()` serialised that mismatch to the wire — the exact shape
+of failure the field-ownership index exists to prevent, one level up. The
+override also survived `.with()`, which re-validated the tampered bag rather
+than restoring the factory's literal.
+
+The props interfaces already omit `TransactionType`, so a **TypeScript** caller
+could not do this — but the package ships JavaScript, and a JavaScript caller
+had no guard at all. The hazard was already documented in
+`src/fp/factories/payment.ts` ("`buildFrozenTx` spreads the field set AFTER
+setting it — a caller-supplied value would win") and mitigated only at the type
+layer.
+
+The fix is at the one choke point every factory and every `.with()` override
+passes through: `buildFrozenTx` now drops `TransactionType` from the caller's
+field set, so the factory's literal always wins. `mergeForWith` skips the key
+too, so a tx's own type is not re-fed into the props bag on `.with()`.
+
+The value is discarded rather than rejected, deliberately: `.with()` legitimately
+re-feeds the current tx's own `TransactionType` back through `mergeForWith`, so
+throwing would break every `.with()` call.
+
+Tests: 4,085 → 4,089. The regression cases live in
+`tests/fp/field-index.test.ts` under *TransactionType is factory-owned*.
+
+Found by: a whole-project review pass
+([`docs/audit/2026-11-01-code-quality-audit.md`](./docs/audit/2026-11-01-code-quality-audit.md)).
+
+### Fixed
+
+**The generated field-ownership index carried stale statistics.** `a2685e7`
+hand-edited `src/fp/field-index.ts` — a file marked *GENERATED — do not edit* —
+to drop `AccountSet` from `NFTokenBrokerFee`'s owner set, and did not update the
+header, which still claimed *322 field/type pairs; 87 fields valid on exactly
+one type*. The table it describes holds **321** pairs and **88** single-type
+fields. Regenerating the file fixes the header; the rows were already correct.
+
 ## [1.4.2] — 2026-10-09
 
 ### Documentation
@@ -347,7 +403,8 @@ in the downstream harness.
 Not reconstructed here. `git log` predates this file; consult the repository
 history for those releases.
 
-[Unreleased]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.4.3...HEAD
+[1.4.3]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.4.2...v1.4.3
 [1.2.0]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.0.5...v1.1.0
 [1.0.5]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.0.4...v1.0.5
