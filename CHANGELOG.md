@@ -13,6 +13,101 @@ a reader can tell a ledger-facing behaviour change from an internal cleanup.
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-11-01
+
+Remediates the findings of the whole-project review in
+[`docs/audit/2026-11-01-code-quality-audit.md`](./docs/audit/2026-11-01-code-quality-audit.md).
+
+### Added
+
+- **`payment` models `CredentialIDs` and `DomainID`.** Both fields are in
+  rippled's `ttPAYMENT` block and are validated by xrpl.js 5.3.0, but this
+  library accepted them without checking them, so an arbitrary value reached
+  the wire. `CredentialIDs` must be a non-empty array of at most 8 entries,
+  each a 64-character hex string, with no duplicates — the same rule
+  `accountDelete` applies to the same field. `DomainID` must be a
+  64-character hex string. Sources: rippled
+  `include/xrpl/protocol/detail/transactions.macro`; xrpl.js
+  `models/transactions/payment.ts:214–218` and `:225`.
+- **`ammDeposit` models `TradingFee`.** rippled's `ttAMM_DEPOSIT` block lists
+  `{sfTradingFee, SoeOptional}`, and `AMMDeposit::preflight` permits it in
+  exactly one deposit mode. The field is accepted only with the
+  `tfTwoAssetIfEmpty` mode and must be an integer in `[0, 1000]`
+  (`kTradingFeeThreshold`, `include/xrpl/protocol/AMMCore.h:16`).
+- **`npm run check:field-index`** — regenerates the field-ownership index, the
+  assertion file and the divergence report, and fails on any diff. Wired into
+  CI and into the publish workflow, so the committed artifacts can no longer
+  drift from their sources. This closes the only drift the compile-time
+  assertions could not catch: the protocol half of the table, which comes
+  from `ripple-binary-codec`.
+- **`ripple-binary-codec` is an explicit devDependency**, pinned exactly to
+  `2.11.0`. It is a build input for a committed artifact — the generator reads
+  its `definitions.json` directly — so it should be pinned by intent rather
+  than inherited by transitivity through `xrpl`.
+- **`docs/field-index-divergences.md`** — the generator's protocol-divergence
+  report, written to a committed file instead of printed and lost. It records
+  which fields the Ledger accepts but this library does not model, and where
+  the field-ownership index catches them. Regenerated and diff-checked by CI.
+- **`tests/fp/account-guard.test.ts`** — a repo-wide invariant: every factory
+  rejects a malformed `Account`, and every factory accepts a well-formed
+  classic or X-address.
+- **`"sideEffects": false`** in `package.json`. The package is side-effect-free
+  by construction; webpack-class bundlers need the field to drop unused
+  re-exports from the 79-export barrel.
+
+### Changed
+
+- **`Account` is now validated as a well-formed XRPL address in all 79
+  factories.** Eight factories — `credentialAccept`, `credentialCreate`,
+  `oracleSet`, `permissionedDomainSet`, `vaultCreate`, `vaultDelete`,
+  `vaultDeposit`, `vaultSet` — checked it with `isString` only, so
+  `Account: 'not-an-address'` constructed successfully and the error surfaced
+  on some other field. The other 71 already used `isAccount`.
+
+  **This is a behaviour change.** A caller passing a non-address string as
+  `Account` used to get a transaction and now gets a `ValidationError`. The
+  rule is the ledger's own — rippled parses `Account` as an `AccountID` and
+  rejects anything that is neither hex nor valid base58
+  (`src/libxrpl/protocol/STParsedJSON.cpp:919`) — and it matches the
+  library's own contribution template. The check is deliberately format-only:
+  it rejects garbage strings but still accepts a well-formed address whose
+  checksum does not verify, which is caught by the ledger.
+
+- **`src/fp/field-index.assert.*` is no longer published.** It is a type-only
+  file with no runtime consumer; excluding it removes ~22 KB from the tarball.
+
+### Fixed
+
+- **Four divergence blocks cited xrpl.js incorrectly.** `permissioned-domain-delete`,
+  `loan-delete`, `amm-delete` and `amm-vote` all claimed that xrpl.js's
+  `validateBaseTransaction` checks `Account` via `isAccount`. It uses
+  `isString` — `models/transactions/common.ts:987` — as does the Class API
+  (`xrplt src/validation/base.ts:40–41`). The guard is still a legitimate
+  divergence, but it rests on rippled's parsing, not xrpl.js's, and the
+  citations now say so.
+
+- **Every factory now carries a `## Divergences` block.** `loan-set`,
+  `mptoken-issuance-create`, `payment` and `vault-create` had none, which
+  `CONTRIBUTING.md:166–170` calls out as a finding in its own right, and the
+  README claimed all 79 did. Eleven further factories applied the `Account`
+  guard without documenting it; those now have an entry for it.
+
+- **The generator's rationale comment described a behaviour that no longer
+  exists.** It justified the two-source merge with `AccountSet` declaring
+  `NFTokenBrokerFee`, which the library stopped declaring in `a2685e7`. It
+  now describes both directions of the codec's lag.
+
+- **The README overstated tree-shaking.** "Importing one pulls in only that
+  factory's code (full tree-shaking)" is true of the factory code and false
+  of the shared field-ownership table, which cannot tree-shake: catching a
+  field used on the wrong transaction requires knowing every field on every
+  type. The README now says what actually ships.
+
+Tests: 4,089 → 4,119.
+
+Found by: a whole-project review pass
+([`docs/audit/2026-11-01-code-quality-audit.md`](./docs/audit/2026-11-01-code-quality-audit.md)).
+
 ## [1.4.3] — 2026-11-01
 
 ### Fixed
@@ -403,7 +498,8 @@ in the downstream harness.
 Not reconstructed here. `git log` predates this file; consult the repository
 history for those releases.
 
-[Unreleased]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.4.3...HEAD
+[Unreleased]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.4.2...v1.4.3
 [1.2.0]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.0.5...v1.1.0
