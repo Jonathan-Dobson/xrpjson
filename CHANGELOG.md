@@ -13,6 +13,43 @@ a reader can tell a ledger-facing behaviour change from an internal cleanup.
 
 ## [Unreleased]
 
+## [1.6.1] — 2026-11-01
+
+### Changed
+
+**The field-ownership index is roughly half the size it was.** The table
+that lets a factory reject a field belonging to another transaction now
+stores an *index* into a shared tuple of transaction type names, instead of
+repeating the name for every one of its 321 (field, type) pairs.
+
+Measured with Rollup, bundling an entry that imports only `payment`:
+
+| | 1.6.0 | 1.6.1 |
+|---|---|---|
+| field-ownership index | 13,377 B / 9,556 B minified | 9,830 B / 4,849 B minified |
+| Payment-only bundle | 32,154 B / 14,300 B minified | 28,607 B / 9,593 B minified |
+
+**This is an internal change with no behavioural difference.** 5,616
+(transaction type, field name) pairs were compared against the published
+1.6.0 implementation: every accept/reject decision *and* every error
+message string is identical. The error still names the transaction that
+accepts the field — `Payment: "DestinationTag" is not a field on this
+transaction. It belongs to: AccountSet.`
+
+The index still ships in full, because it cannot tree-shake: rejecting a
+field that belongs to another transaction requires knowing every field name
+the library knows, so that "foreign" can be told apart from "a field a
+future amendment adds". What changed is how much of it there is.
+
+The audit's own proposed remedy for this — one module per field, so a
+bundler keeps only the fields the consumer's factory declares — was
+measured and cannot work: a Payment-only consumer would then have no way to
+tell a foreign field from an unknown one, and would let `DestinationTag`
+through. 143 one-field modules also measured *larger* than the single
+table. See
+[`docs/audit/2026-11-01-code-quality-audit.md`](./docs/audit/2026-11-01-code-quality-audit.md),
+P2-1.
+
 ## [1.6.0] — 2026-11-01
 
 Closes the last two open items from the whole-project review in
