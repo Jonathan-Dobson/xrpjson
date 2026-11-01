@@ -27,8 +27,16 @@ ledger rule the factory knows about, the call throws — no separate
 `.validate()` step, no silent preclaim failures at submit time.
 
 Each transaction family (`payment`, `vaultCreate`, `ammDeposit`, ...) has
-its own factory. Importing one pulls in only that factory's code (full
-tree-shaking).
+its own factory. Importing one pulls in only that factory's code — the
+package is side-effect-free and every factory is its own module, so
+bundlers tree-shake the rest away.
+
+One shared module does not tree-shake: the **field-ownership index**, a
+table mapping each of the 143 ledger field names to the transaction types
+that accept it. It is what lets a factory reject a field that belongs to
+a different transaction, and catching that requires knowing every field
+on every type — so it ships in full (about 12 KB of a Payment-only
+bundle). The package is still zero runtime dependencies.
 
 ## What it covers
 
@@ -294,7 +302,8 @@ fresh. Read it before your first change.
 | [`CONTEXT.md`](./CONTEXT.md) | Glossary of the terms the factory docstrings use without defining — *frozen tx*, *divergence*, *preclaim*, *Class API*, *Source* vs *Cross-ref* |
 | [`docs/adr/`](./docs/adr/) | Architecture decisions: functional API over the class API, the frozen shape, XLS-spec precedence, and the rippled citation convention |
 | [`docs/audit/`](./docs/audit/) | Audits — what was checked, against which pinned sources, and what was corrected |
-| [`docs/audit/2026-11-01-code-quality-audit.md`](./docs/audit/2026-11-01-code-quality-audit.md) | Whole-project review of the 79 factories, the validation layer, the generated field-ownership index, and the package surface. Found **1 P0** — a caller could override `TransactionType` on any factory, so a frozen tx could claim a type its own fields did not match (fixed in 1.4.3) — plus 3 P1 and 2 P2 findings on validation coverage, the generator's drift guards, and the README's tree-shaking claim |
+| [`docs/audit/2026-11-01-code-quality-audit.md`](./docs/audit/2026-11-01-code-quality-audit.md) | Whole-project review of the 79 factories, the validation layer, the generated field-ownership index, and the package surface. Found **1 P0** — a caller could override `TransactionType` on any factory, so a frozen tx could claim a type its own fields did not match (fixed in 1.4.3) — plus 3 P1 and 2 P2 findings on validation coverage, the generator's drift guards, and the README's tree-shaking claim. **All remediated in 1.4.3 / 1.5.0**; one new P2 (rippled's per-deposit-mode field rules in `ammDeposit`) is recorded and open |
+| [`docs/field-index-divergences.md`](./docs/field-index-divergences.md) | Generated: the standing list of fields the XRP Ledger accepts but this library does not model, and where the field-ownership index catches them. Regenerated and diff-checked by CI |
 | [`docs/audit/2026-10-02-flag-contradiction-audit.md`](./docs/audit/2026-10-02-flag-contradiction-audit.md) | Flag audit of all 63 `Flags`-bearing factories. Found **3 defects** — all cases where a factory rejected input rippled accepts — and fixed them: `sponsorshipTransfer` refused `spfSponsorFee`, `mptokenIssuanceCreate` ignored boolean-map `Flags`, `nftokenMint` refused `TransferFee: 0`. Also records the gaps (46 factories reason about flags not at all) and corrects the "7 of 63 validate" count, which was a grep artifact — 17 read `Flags` at runtime |
 
 ## License

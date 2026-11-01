@@ -15,6 +15,37 @@ exit 0 · `npm test` **4,085 passed** across 80 files.
 
 ---
 
+## Resolution
+
+Every finding below was remediated in **1.4.3** and **1.5.0**. The findings
+are kept below as written, with the outcome noted on each; two claims in the
+original text were wrong and are corrected in place.
+
+| # | Finding | Outcome |
+|---|---|---|
+| P0-1 | A caller could override `TransactionType` on any factory | **Fixed in 1.4.3** — closed at the shared choke point, 4 regression tests |
+| P1-1 | 10 (field, transaction) pairs reach the wire unvalidated | **Fixed in 1.5.0** — 7 of the 10 pairs now have real guards (`Payment.CredentialIDs`, `Payment.DomainID`, `AMMDeposit.TradingFee`); the remaining 3 pairs are fields the library does not model at all, and are now recorded in a committed gap report |
+| P1-2 | 8 of 79 factories do not validate `Account` as an XRPL address | **Fixed in 1.5.0** — all 79 now use `isAccount`; a repo-wide invariant test enforces it |
+| P1-3 | The generated index has no guard that it matches its generator | **Fixed in 1.5.0** — CI regenerates and diffs; the codec is pinned as an explicit dependency |
+| P2-1 | The README's tree-shaking claim is overstated | **Fixed in 1.5.0** — the README now states what actually ships; `sideEffects: false` added; the type-only assert file no longer ships |
+| P2-2 | The README's "`## Divergences` header" claim is false for four factories | **Fixed in 1.5.0** — all 79 now carry a `## Divergences` block |
+| P3 | Stale generator rationale; the divergence report was only printed | **Fixed in 1.5.0** — comment corrected, report written to `docs/field-index-divergences.md` |
+| **new** | `ammDeposit` does not implement rippled's per-deposit-mode field rules | **Open** — recorded as P2-4 below with a drill-deeper list |
+
+Two claims in the original text were wrong, and are corrected in place:
+
+- The original P1-2 said the 71 stricter factories "do not record" the
+  Account guard in their `## Divergences` blocks. **57 of 79 did.** The real
+  gap was narrower: 11 factories applied the guard without documenting it,
+  and 4 had no `## Divergences` block at all.
+- The original P1-2 also reported that
+  `permissioned-domain-delete.ts` cites xrpl.js as checking `Account` via
+  `isAccount`. **That citation was false** — xrpl.js uses `isString`. Three
+  more factories (`loan-delete`, `amm-delete`, `amm-vote`) carried the same
+  false citation. All four are corrected.
+
+---
+
 ## TL;DR
 
 `xrpjson` is a well-built, unusually disciplined library. Its vocabulary
@@ -206,6 +237,13 @@ Tests: 4,085 → 4,089. `npm run lint` 0 · `npx tsc --noEmit` 0 · `npm test`
 
 ### P1-1 · Ten (field, transaction) pairs reach the wire unvalidated
 
+> **Status — Fixed in 1.5.0, with one part deliberately left open.** The
+> finding below is correct as written. The remediation splits the ten pairs
+> in two: seven are fields the library *could* model and now does, and three
+> are fields the library has no model for at all. Read the resolution at the
+> end of this section before acting on the drill-deeper list, which
+> describes the options as they stood before the decision was taken.
+
 **Concern.** The index merges *protocol truth* into the ownership table so it
 can catch a protocol field used on the wrong type. The side effect is that a
 field the **library neither models nor validates** becomes acceptable at
@@ -264,7 +302,39 @@ not a corrupt ledger entry.
   and validate them properly. That closes 10 pairs by adding real guards, and
   it is the only option that makes the library's own surface honest.
 
+**Resolution taken (1.5.0).** The ten pairs split cleanly in two, and the
+second bullet above turned out to be the wrong cut — the useful split is by
+*whether the library can validate the field at all*, not by whether the
+field is "protocol-only".
+
+| Pair | Resolution |
+|---|---|
+| `Payment.CredentialIDs` | **Now modelled and validated.** `PaymentProps` gains `CredentialIDs?: string[]`; the factory applies the same rule `accountDelete` applies to the same field — non-empty, ≤ 8 entries, each a 64-character hex string, no duplicates. |
+| `Payment.DomainID` | **Now modelled and validated.** `PaymentProps` gains `DomainID?: string`; validated with the library's existing `isDomainID` helper (64-character hex). Gated by `featurePermissionedDEX` in rippled (XLS-0080d). |
+| `AMMDeposit.TradingFee` | **Now modelled and validated.** `AmmDepositProps` gains `TradingFee?: number`; permitted only with the `tfTwoAssetIfEmpty` deposit mode and bounded to `[0, 1000]` (`kTradingFeeThreshold`, `include/xrpl/protocol/AMMCore.h:16`). |
+| `AccountSet.NFTokenMinter`, `AccountSet.WalletLocator`, `AccountSet.WalletSize` | **Left open, deliberately.** These are fields the library has no model for anywhere. Modelling them is new feature work, not a fix, and rejecting them would break the forward-compatibility hatch the library is built on — and an existing test deliberately pins that a protocol-legal field on its owning transaction is accepted. |
+| `LedgerStateFix.BookDirectory` | **Left open, for the same reason.** |
+
+All three modelled fields are confirmed by rippled's own transaction
+template — `ttPAYMENT` lists `{sfCredentialIDs, SoeOptional}` and
+`{sfDomainID, SoeOptional}`, and `ttAMM_DEPOSIT` lists `{sfTradingFee,
+SoeOptional}` (`include/xrpl/protocol/detail/transactions.macro`) — and by
+xrpl.js 5.3.0, which already validates all three
+(`models/transactions/payment.ts:214–218` and `:225`).
+
+The four pairs left open are now written to a committed file rather than
+living in terminal scrollback: `docs/field-index-divergences.md`, generated
+by `scripts/gen-field-index.mjs`. After the three fields above were
+modelled, the generator's divergence report shrank from four transactions to
+two, and the ten pairs to four.
+
 ### P1-2 · Eight factories do not validate `Account` as an XRPL address
+> **Status — Fixed in 1.5.0.** All 79 factories now check `Account` with
+> `isAccount`, and `tests/fp/account-guard.test.ts` pins the invariant
+> repo-wide so a future factory cannot reintroduce the laxer check. The
+> "Why P1" and drill-deeper text below is retained as the reasoning that
+> drove the decision; note the correction at the top of this section
+> about how many factories already documented the guard.
 
 **Concern.** 71 of 79 factories check `Account` with `isAccount`; eight check
 it with `isString`. The eight accept any string.
@@ -314,12 +384,42 @@ question with a documented baseline on both sides:
 
 So the eight are *baseline-faithful* and the 71 are the ones that diverge
 from the Class API. Per `CONTEXT.md:76-80` a divergence belongs in the
-factory's `## Divergences` block — and only one factory currently records it
-(`permissioned-domain-delete.ts:99`, *"than the class API's looser
-`isString(Account)` check"*). The other 70 stricter factories do not.
+factory's `## Divergences` block — and 57 of the 79 do record it.
 
-Either way the library ships two different guarantees for the same field
+> **Correction to the text below.** When this finding was first written it
+> said that only one factory recorded the Account guard and that "the other
+> 70 stricter factories do not". That was wrong: a survey of the
+> `## Divergences` blocks found **57 of 79** already documenting it. The
+> real documentation gap was narrower — 11 factories applied the guard
+> without mentioning it, and 4 had no `## Divergences` block at all:
+> `account-set`, `loan-set`, `mptoken-issuance-create`, `payment`,
+> `vault-create`.
+
+The Class API check was also confirmed directly: `xrplt@0.7.1`
+(`/Users/jdobson/developer/128-xrp-tx-builder`) uses `isAccount` for
+`Destination`, `Issuer`, `Owner`, `Holder`, `RegularKey`, `Sponsee`,
+`Counterparty`, `Authorize` and `Unauthorize` — but **never** for `Account`
+itself, which only its base validator touches, with `isString`
+(`src/validation/base.ts:40–41`). So the 71 stricter factories are the ones
+diverging from the baseline, and the divergence is legitimate: rippled
+parses `Account` as an `AccountID` and rejects anything that is neither hex
+nor valid base58 (`src/libxrpl/protocol/STParsedJSON.cpp:919`).
+
+Either way the library shipped two different guarantees for the same field
 name, which is the real problem.
+
+**Resolution taken (1.5.0).** Option (a) from the drill-deeper list —
+tighten the eight to `isAccount` — for three reasons: it matches the
+library's own contribution template, it matches the majority convention
+already in the code, and it is what rippled's own parsing requires. The
+eight factories now use `isAccount`; all 79 document the guard; and
+`tests/fp/account-guard.test.ts` asserts the invariant across every factory
+in the barrel, so the split cannot come back.
+
+`isAccount` remains deliberately format-only — no base58 checksum
+(`CONTEXT.md:51-56`, `src/validation/helpers.ts:44-60`). A tightened
+`Account` check rejects garbage strings but still accepts a
+well-formed-but-invalid address; the divergence text in each factory says so.
 
 **Drill-deeper before fixing.**
 
@@ -341,6 +441,10 @@ name, which is the real problem.
   tightened, so callers do not read the guard as a checksum.
 
 ### P1-3 · The generated index has no guard that it matches its generator
+> **Status — Fixed in 1.5.0.** CI now regenerates the index and fails on any
+> diff; `ripple-binary-codec` is pinned as an explicit devDependency; and the
+> divergence report the generator already computed is written to a committed
+> file instead of being printed and lost.
 
 **Concern.** `scripts/gen-field-index.mjs` writes two files into `src/`.
 Nothing checks that the committed files are what the generator would produce,
@@ -405,6 +509,13 @@ no signal in the build.
 ## P2 — medium-priority quality
 
 ### P2-1 · The README's tree-shaking claim is overstated, measurably
+> **Status — Partly fixed in 1.5.0.** The README now states what actually
+> ships, `sideEffects: false` is set, and the type-only assert file is
+> excluded from the tarball. The measured table size is unchanged — the
+> cross-type field index cannot tree-shake, because catching a field used
+> on the wrong transaction requires knowing every field on every type.
+> The per-field module split below is therefore still open as an option,
+> but it is a *size* optimisation, not a correctness one.
 
 **Concern.** `README.md:29-31`:
 
@@ -460,6 +571,9 @@ Two smaller points in the same area:
   exclusion, and `tsconfig.json` would need the emit skipped.
 
 ### P2-2 · The README's "`## Divergences` header" claim is false for four factories
+> **Status — Fixed in 1.5.0.** All 79 factories now carry a `## Divergences`
+> block: the four that had none gained one, and the ones that had one but
+> did not mention the `Account` guard gained an entry for it.
 
 **Concern.** `README.md:68`:
 
@@ -489,23 +603,79 @@ explicit *"no divergences"* line to the four factories — four comment blocks,
 no behaviour change, and it removes the last ambiguity for a future
 contributor reading one factory in isolation.
 
+### P2-3 · `ammDeposit` does not implement rippled's per-deposit-mode field rules
+
+> **Status — Open. Found during this review, not fixed.** Recorded here
+> because it was discovered while implementing the P1-1 `TradingFee` rule, and
+> it belongs to the same family of problems: the library models a subset of
+> rippled's preclaim rules for this transaction type.
+
+**Concern.** rippled's `AMMDeposit::preflight` has a *per-mode* field
+combination table — which of `Amount`, `Amount2`, `EPrice`, `LPTokenOut` and
+`TradingFee` may appear alongside each deposit-mode flag. The library checks
+the mode flag itself (exactly one of six) and a few cross-field rules, but
+not the per-mode combinations.
+
+**Evidence.** rippled `src/libxrpl/tx/transactors/dex/AMMDeposit.cpp:78–112`:
+
+| Mode | rippled requires | rippled forbids |
+|---|---|---|
+| `tfLPToken` | `LPTokenOut` | `EPrice`, `TradingFee`, one of `Amount`/`Amount2` |
+| `tfSingleAsset` | `Amount` | `Amount2`, `EPrice`, `TradingFee` |
+| `tfTwoAsset` | `Amount`, `Amount2` | `EPrice`, `TradingFee` |
+| `tfOneAssetLPToken` | `Amount`, `LPTokenOut` | `Amount2`, `EPrice`, `TradingFee` |
+| `tfLimitLPToken` | `Amount`, `EPrice` | `LPTokenOut`, `Amount2`, `TradingFee` |
+| `tfTwoAssetIfEmpty` | `Amount`, `Amount2` | `EPrice`, `LPTokenOut` |
+
+The library's `amm-deposit.ts` enforces only: `Amount2` and `EPrice` require
+`Amount`; at least one of `LPTokenOut` or `Amount` is required; and the mode
+flag is exactly one of six. So `ammDeposit({ Flags: tfSingleAsset, Amount,
+Amount2 })` constructs here and is rejected by the ledger with
+`temMALFORMED` — a `tfSingleAsset` deposit that is not single-asset.
+
+**Why P2.** It is a real gap, but narrower than P1-1: the mode flag is
+validated, the field types are validated, and the two cross-field rules the
+library does implement are correct. What is missing is the per-mode matrix.
+The blast radius is `ammDeposit` only.
+
+**Drill-deeper before fixing.**
+
+- Implement the table literally, as a per-mode predicate over the set of
+  present fields. rippled's own comment block above the branches
+  (`AMMDeposit.cpp:66–72`) is the field list to transcribe, and it is short
+  enough to put in the factory as a table rather than as six branches.
+- Decide the error surface. rippled answers `temMALFORMED` for all six
+  modes; the library's convention is a specific message naming the offending
+  combination, which is more useful than a generic one but is not a
+  `temMALFORMED` reproduction.
+- Check the Class API first (`xrplt@0.7.1`,
+  `src/transactions/amm-deposit.ts`) — it models none of these combination
+  rules either, so implementing them is a divergence and needs an entry in
+  the factory's `## Divergences` block.
+- Note that `tfTwoAssetIfEmpty` also requires `Amount2` (rippled line 110),
+  which the library does not check for any mode.
+
 ---
 
 ## P3 — cleanup
 
-- **`scripts/gen-field-index.mjs:39-42` is stale.** It justifies the
-  two-source merge with: *"the codec lags the library. `AccountSet` declares
-  `NFTokenBrokerFee`, which codec 2.11.0 places only on `NFTokenAcceptOffer`.
-  An index built from A alone would reject a field this library deliberately
-  supports."* After `a2685e7`, the library no longer declares it — it
-  deliberately **rejects** it. The comment inverts the current behaviour and
-  will mislead the next maintainer about why the merge exists.
-- **The generator's protocol-divergence report is printed and discarded.**
-  `scripts/gen-field-index.mjs:274-285` computes the four standing
-  divergences and writes them to stdout. Nothing persists them, so the
-  library's list of "fields the protocol has that we do not model" lives
-  only in a terminal scrollback. Emitting them into a committed doc would
-  make P1-1's ten pairs reviewable over time rather than rediscovered.
+- ~~**`scripts/gen-field-index.mjs:39-42` is stale.**~~ **Fixed in 1.5.0.**
+  It justified the two-source merge with: *"the codec lags the library.
+  `AccountSet` declares `NFTokenBrokerFee`, which codec 2.11.0 places only on
+  `NFTokenAcceptOffer`. An index built from A alone would reject a field this
+  library deliberately supports."* After `a2685e7`, the library no longer
+  declares it — it deliberately **rejects** it. The comment inverted the
+  current behaviour and would have misled the next maintainer about why the
+  merge exists. It now describes both directions of the codec's lag, and
+  names `a2685e7` as the precedent for removing a field rather than shipping
+  it.
+- ~~**The generator's protocol-divergence report is printed and discarded.**~~
+  **Fixed in 1.5.0.** `scripts/gen-field-index.mjs` now writes the report to
+  `docs/field-index-divergences.md`, and CI checks that file against a fresh
+  run. The library's list of "fields the protocol has that we do not model" is
+  no longer terminal scrollback. The report carries no timestamp on purpose:
+  a date would make the file differ on every regeneration and defeat the
+  drift check that compares it.
 - **`src/validation/base.ts` is exported twice over.** `validateBaseTransaction`
   is reachable at `xrpjson/validation` (via `src/validation/index.ts:1`) and
   is also imported directly by all 79 factories from
@@ -518,19 +688,22 @@ contributor reading one factory in isolation.
 
 ## Recommendations, ordered by ROI
 
-| # | Action | Priority | Effort | Impact |
+| # | Action | Priority | Effort | State |
 |---|---|---|---|---|
-| 1 | CI step: regenerate the field index and `git diff --exit-code` | P1 | ~5 min | Closes the hand-edit hole, the protocol-drift hole, and the stale header at once |
-| 2 | Add `ripple-binary-codec` as an explicit devDependency | P1 | ~5 min | Pins a build input by intent rather than by transitivity |
-| 3 | Split the index's *acceptance* set from its *rejection* set | P1 | ~2 h | Removes 10 unvalidated (field, type) pairs from the wire |
-| 4 | Settle the `Account` predicate question for all 79 | P1 | ~4 h | One guarantee for one field name, and 71 documented divergences |
-| 5 | Emit the index as one module per field | P2 | ~3 h | Cuts ~26% off a Payment-only bundle |
-| 6 | Add `"sideEffects": false` to `package.json` | P2 | ~1 min | Correct, free, and helps webpack consumers |
-| 7 | Exclude `field-index.assert.*` from the published tarball | P2 | ~15 min | Removes ~22 KB of dead weight from the package |
-| 8 | Reconcile the three documents on `## Divergences` | P2 | ~30 min | Removes a contradiction a contributor will hit |
-| 9 | Amend `README.md:29-31` on tree-shaking (or do #5 first) | P2 | ~10 min | Makes the README measurably true |
-| 10 | Fix the stale rationale in `scripts/gen-field-index.mjs:39-42` | P3 | ~5 min | Stops the next maintainer being misled |
-| 11 | Persist the generator's protocol-divergence report | P3 | ~30 min | Makes P1-1 trackable over time |
+| 1 | CI step: regenerate the field index and `git diff --exit-code` | P1 | ~5 min | **Done** — `npm run check:field-index`, wired into CI and the publish workflow |
+| 2 | Pin `ripple-binary-codec` as an explicit devDependency | P1 | ~5 min | **Done** — exact pin `2.11.0`, with the reason recorded |
+| 3 | Model + validate `Payment.CredentialIDs`, `Payment.DomainID`, `AMMDeposit.TradingFee` | P1 | ~2 h | **Done** — closes 6 of the 10 unvalidated pairs |
+| 4 | Settle the `Account` predicate question for all 79 | P1 | ~4 h | **Done** — all 79 use `isAccount`; a repo-wide invariant test enforces it |
+| 5 | Document the `Account` divergence in every factory | P2 | ~2 h | **Done** — all 79 carry a `## Divergences` block |
+| 6 | Correct the four false xrpl.js `isAccount` citations | P1 | ~30 min | **Done** — `permissioned-domain-delete`, `loan-delete`, `amm-delete`, `amm-vote` |
+| 7 | Add `"sideEffects": false` to `package.json` | P2 | ~1 min | **Done** |
+| 8 | Exclude `field-index.assert.*` from the published tarball | P2 | ~15 min | **Done** — ~22 KB of dead weight removed |
+| 9 | Amend `README.md:29-31` on tree-shaking | P2 | ~10 min | **Done** — the README now says what actually ships |
+| 10 | Fix the stale rationale in `scripts/gen-field-index.mjs` | P3 | ~5 min | **Done** |
+| 11 | Persist the generator's protocol-divergence report | P3 | ~30 min | **Done** — `docs/field-index-divergences.md` |
+| 12 | Implement rippled's per-deposit-mode field rules in `ammDeposit` | P2 | ~3 h | **Open** — see P2-3 |
+| 13 | Emit the index as one module per field | P2 | ~3 h | **Open** — a size optimisation, not a correctness one |
+| 14 | Model `AccountSet`'s three protocol-only fields, and `LedgerStateFix.BookDirectory` | P2 | ~4 h | **Open** — new feature work, not a fix |
 
 ---
 
@@ -560,14 +733,31 @@ four factories and through `.with()` · `Account` acceptance across all 79
 factories · the four protocol-only divergence cases · bundle size attribution
 via Rollup · generator regeneration diff · `npm pack --dry-run`
 
-**External sources consulted.** `node_modules/xrpl@5.3.0`
-`dist/npm/models/transactions/common.js:391` (canonical
-`validateBaseTransaction` Account predicate) ·
-`node_modules/ripple-binary-codec@2.11.0` `dist/enums/definitions.json`
-(`TRANSACTION_FORMATS`, the index's protocol source) ·
-`~/.mavis/docs.local/xrpl.js/repo/packages/xrpl/src/models/transactions/common.ts`
-(canonical source mirror)
+**External sources consulted.**
 
-**Verification at time of writing.** `npm run lint` exit 0 ·
-`npx tsc --noEmit` exit 0 · `npm test` **4,089 passed** across 80 files ·
-`node scripts/gen-field-index.mjs` reproduces the committed index exactly.
+- `node_modules/xrpl@5.3.0` `dist/npm/models/transactions/common.js:391` —
+  the canonical `validateBaseTransaction` Account predicate (`isString`).
+- `node_modules/ripple-binary-codec@2.11.0` `dist/enums/definitions.json` —
+  `TRANSACTION_FORMATS`, the index's protocol source.
+- `~/.mavis/docs.local/xrpl.js/repo/packages/xrpl/src/models/transactions/common.ts:987`
+  — the pinned xrpl.js mirror; `common.ts:28` (`MAX_AUTHORIZED_CREDENTIALS = 8`),
+  `common.ts:1106` (`validateCredentialsList`),
+  `payment.ts:214–218` and `:225` (the two Payment fields),
+  `permissionedDomainDelete.ts:22–28`, `credentialAccept.ts:39`,
+  `credentialCreate.ts:50`.
+- `~/.mavis/docs.local/rippled/repo/` — the pinned rippled mirror:
+  `src/libxrpl/protocol/STParsedJSON.cpp:919` (`case STI_ACCOUNT:`),
+  `include/xrpl/protocol/detail/transactions.macro` (the `ttPAYMENT`,
+  `ttAMM_DEPOSIT` and `ttESCROW_FINISH` blocks),
+  `include/xrpl/protocol/AMMCore.h:16` (`kTradingFeeThreshold = 1000`),
+  `src/libxrpl/tx/transactors/dex/AMMDeposit.cpp:64, 78–112, 168`,
+  `src/libxrpl/tx/transactors/payment/Payment.cpp:88–90`.
+- `/Users/jdobson/developer/128-xrp-tx-builder` — the Class API (`xrplt@0.7.1`),
+  the divergence baseline: `src/validation/base.ts:40–41` (the Account check)
+  and `src/transactions/*.ts` (per-class field validation).
+
+**Verification after the remediation.** `npm run lint` exit 0 ·
+`npx tsc --noEmit` exit 0 · `npm test` **4,119 passed** across 81 files ·
+`npm run check:field-index` exit 0 (the committed index, the assertion file and
+the divergence report all match a fresh generator run) ·
+`npm pack --dry-run` ships 372 files with no `field-index.assert.*`.
