@@ -188,6 +188,89 @@ describe('fp/payment()', () => {
     expect(tx.DeliverMin).toBe('500000');
   });
 
+  // ─── CredentialIDs / DomainID ─────────────────────────────────────────────
+  // Both fields are in rippled's `ttPAYMENT` block and validated by xrpl.js
+  // 5.3.0, but the Class API models neither — so the factory accepts them
+  // where it used to pass them through unvalidated.
+  describe('CredentialIDs', () => {
+    const base = {
+      Account: ACCOUNT_A,
+      Destination: ACCOUNT_B,
+      Amount: '1000000',
+    };
+    const CRED = 'A'.repeat(64);
+
+    it('accepts a single credential ID', () => {
+      const tx = payment({ ...base, CredentialIDs: [CRED] });
+      expect(tx.CredentialIDs).toEqual([CRED]);
+    });
+
+    it('accepts the maximum of 8 credential IDs', () => {
+      const ids = Array.from({ length: 8 }, (_, i) =>
+        i.toString(16).padStart(2, '0').repeat(32).toUpperCase(),
+      );
+      expect(() => payment({ ...base, CredentialIDs: ids })).not.toThrow();
+    });
+
+    it('rejects an empty array', () => {
+      expect(() => payment({ ...base, CredentialIDs: [] })).toThrow(
+        /CredentialIDs must not be an empty array/,
+      );
+    });
+
+    it('rejects more than 8 entries', () => {
+      const ids = Array.from({ length: 9 }, (_, i) =>
+        i.toString(16).padStart(2, '0').repeat(32).toUpperCase(),
+      );
+      expect(() => payment({ ...base, CredentialIDs: ids })).toThrow(
+        /CredentialIDs length cannot exceed 8 elements/,
+      );
+    });
+
+    it('rejects an entry that is not a 64-character hex string', () => {
+      expect(() => payment({ ...base, CredentialIDs: ['not-hex'] })).toThrow(
+        /CredentialIDs\[0\] must be a 64-character hex string/,
+      );
+    });
+
+    it('rejects duplicate entries', () => {
+      expect(() =>
+        payment({ ...base, CredentialIDs: [CRED, CRED] }),
+      ).toThrow(/CredentialIDs cannot contain duplicate elements/);
+    });
+
+    it('rejects a non-array', () => {
+      expect(() =>
+        payment({ ...base, CredentialIDs: CRED as never }),
+      ).toThrow(/CredentialIDs must be an array/);
+    });
+  });
+
+  describe('DomainID', () => {
+    const base = {
+      Account: ACCOUNT_A,
+      Destination: ACCOUNT_B,
+      Amount: '1000000',
+    };
+
+    it('accepts a 64-character hex domain ID', () => {
+      const tx = payment({ ...base, DomainID: 'B'.repeat(64) });
+      expect(tx.DomainID).toBe('B'.repeat(64));
+    });
+
+    it('rejects a domain ID that is not hex', () => {
+      expect(() => payment({ ...base, DomainID: 'not-hex' })).toThrow(
+        /DomainID must be a 64-character hex string/,
+      );
+    });
+
+    it('rejects a domain ID of the wrong length', () => {
+      expect(() => payment({ ...base, DomainID: 'AB' })).toThrow(
+        /DomainID must be a 64-character hex string/,
+      );
+    });
+  });
+
   // ─── Base transaction fields ──────────────────────────────────────────────
   // `PaymentProps` now extends `BasePropsFields`, so the seven fields
   // that were previously absent from every factory's prop type are accepted

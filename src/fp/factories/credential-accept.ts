@@ -56,15 +56,20 @@
  *              `models/transactions/common.ts:30` and
  *              `models/transactions/common.ts:1082–1086`.
  *
- *   4. `Account` is explicitly required and validated as a non-empty
- *      string.
+ *   4. `Account` must be a well-formed XRPL classic or X-address.
  *      The class inherits its `Account` handling from
  *      `Transaction.validate()` via `super.validate()` and never
- *      re-checks the field. The factory has no inheritance chain, so
- *      the requirement is enforced here. xrpl.js enforces the same via
- *      `validateRequiredField(tx, 'Account', isString)`.
+ *      re-checks the field, so the requirement is enforced here. The class
+ *      API's base validator checks `Account` with `isString` only, so
+ *      `"not-an-address"` passes; the factory requires a well-formed
+ *      address — a format check, not a checksum verification. rippled
+ *      parses `Account` as an `AccountID` and rejects anything that is
+ *      neither hex nor valid base58, so the rule is the ledger's own.
  *      Source: XLS-0070 §4.1 (Account is required, JSON Type Address);
- *              xrpl.js `models/transactions/CredentialAccept.ts:39`.
+ *              rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *              (`case STI_ACCOUNT:`);
+ *              xrpl.js `models/transactions/CredentialAccept.ts:39`
+ *              (`validateRequiredField(tx, 'Account', isString)`).
  *
  * Note on `Issuer`: the class uses `isAccount` (format-only XRPL
  * address check). This is stricter than xrpl.js's `isString` and is
@@ -149,15 +154,12 @@ function validateCredentialTypeHex(value: string): void {
 // ─── Factory ─────────────────────────────────────────────────────────
 
 export function credentialAccept(props: CredentialAcceptProps): CredentialAccept {
-  // ── Account ── required, must be a non-empty string.
+  // ── Account ── required, must be a valid XRPL classic or X-address.
   require(
     props.Account,
     'CredentialAccept: Account is required',
-    isString,
+    isAccount,
   );
-  if (props.Account.length === 0) {
-    throw new ValidationError('CredentialAccept: Account is required');
-  }
 
   // ── Issuer ── required, must look like an XRPL classic or X-address.
   if (!isAccount(props.Issuer)) {

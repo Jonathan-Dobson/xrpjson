@@ -22,15 +22,73 @@
  * Tree-shaking: a consumer that only imports `payment` should pull in
  * ONLY this file plus its direct imports (validators, types). The class
  * registry and 70 other leaf files should NOT appear in the bundle.
+ *
+ * ## Divergences
+ *
+ * The class-based API at the Class API's `Payment` is missing one rule
+ * that the canonical sources require. The factory adds it:
+ *
+ *   1. `Account` must be a well-formed XRPL classic or X-address.
+ *      The class API's base validator checks `Account` with `isString`
+ *      only, so `"not-an-address"` passes. The factory requires a
+ *      well-formed address — a format check, not a checksum verification.
+ *      rippled parses `Account` as an `AccountID` and rejects anything
+ *      that is neither hex nor valid base58, so the rule is the ledger's
+ *      own; xrpl.js checks the field with `isString` and ignores it.
+ *      Source: rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *              (`case STI_ACCOUNT:`);
+ *              xrpl.js `models/transactions/common.ts:987`
+ *              (`validateRequiredField(common, 'Account', isString)`);
+ *              Class API `src/validation/base.ts:40–41`.
+ *
+ *   2. `CredentialIDs` is not declared by the class.
+ *      The class exposes no `CredentialIDs` field, so callers using the
+ *      class API cannot authorize a payment with deposit credentials
+ *      (XLS-0070). The factory adds the field with the same validation
+ *      the `accountDelete` factory applies to the same field: when present
+ *      the array must be non-empty, length ≤ `MAX_AUTHORIZED_CREDENTIALS`
+ *      (8), each entry a 64-char hex string, and contain no duplicates.
+ *      Source: rippled `include/xrpl/protocol/detail/transactions.macro`
+ *              (the `ttPAYMENT` block lists `{sfCredentialIDs,
+ *              SoeOptional}`);
+ *              xrpl.js `models/transactions/payment.ts` lines 214–218
+ *              (`validateCredentialsList(tx.CredentialIDs, …, true,
+ *              MAX_AUTHORIZED_CREDENTIALS)`);
+ *              xrpl.js `models/transactions/common.ts:28`
+ *              (`MAX_AUTHORIZED_CREDENTIALS = 8`).
+ *
+ *   3. `DomainID` is not declared by the class.
+ *      The class exposes no `DomainID` field, so callers using the class
+ *      API cannot make a payment that belongs to a permissioned domain
+ *      (XLS-0080d). The factory adds the field: when present it must be a
+ *      64-character hex string.
+ *      Source: rippled `include/xrpl/protocol/detail/transactions.macro`
+ *              (the `ttPAYMENT` block lists `{sfDomainID, SoeOptional}`);
+ *              xrpl.js `models/transactions/payment.ts` line 225
+ *              (`validateOptionalField(tx, 'DomainID', isDomainID)`).
  */
 import type { Amount } from '../../types/amounts.js';
 import type { PathStep } from '../../types/common.js';
 import type { BasePropsFields } from '../../types/base.js';
 import type { PaymentFlagsInterface } from '../../types/flags.js';
-import { isAccount, isAmount } from '../../validation/helpers.js';
+import {
+  isAccount,
+  isAmount,
+  isArray,
+  isDomainID,
+  isHex,
+  isString,
+} from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
+
+// ─── Spec constants ───────────────────────────────────────────────
+
+/** A credential ID is a 256-bit hash — 64 hex characters. */
+const CREDENTIAL_ID_LENGTH = 64;
+/** xrpl.js `MAX_AUTHORIZED_CREDENTIALS` (common.ts:28). */
+const MAX_CREDENTIAL_IDS = 8;
 
 // ─── Public types ────────────────────────────────────────────────────
 
@@ -67,6 +125,19 @@ export interface PaymentProps extends PaymentBaseFields {
   Paths?: PathStep[][] | undefined;
   /** Maximum amount to spend including fees/slippage. */
   SendMax?: Amount | undefined;
+  /**
+   * IDs of credentials that authorize this payment (XLS-0070).
+   *
+   * Optional. When present: a non-empty array of at most 8 entries, each a
+   * 64-character hex string, with no duplicates.
+   */
+  CredentialIDs?: string[] | undefined;
+  /**
+   * The permissioned domain this payment belongs to (XLS-0080d).
+   *
+   * Optional. When present, a 64-character hex string.
+   */
+  DomainID?: string | undefined;
   /** Bit-flags for this transaction. */
   Flags?: number | PaymentFlagsInterface | undefined;
 }
@@ -107,6 +178,61 @@ export function payment(props: PaymentProps): Payment {
         'Payment: DeliverMin requires tfPartialPayment flag',
       );
     }
+  }
+
+  // ── CredentialIDs ── optional array; bounds + entry-shape + uniqueness
+  //   enforced when present. Per xrpl.js validatePayment, which calls
+  //   validateCredentialsList with maxCredentials = MAX_AUTHORIZED_CREDENTIALS
+  //   = 8. The entry shape is a 64-character hex string, the same rule the
+  //   `credentialDelete` / `accountDelete` factories apply to the same field.
+  if (props.CredentialIDs !== undefined) {
+    if (!isArray(props.CredentialIDs)) {
+      throw new ValidationError(
+        'Payment: CredentialIDs must be an array of credential ID strings',
+      );
+    }
+    if (props.CredentialIDs.length === 0) {
+      throw new ValidationError(
+        'Payment: CredentialIDs must not be an empty array',
+      );
+    }
+    if (props.CredentialIDs.length > MAX_CREDENTIAL_IDS) {
+      throw new ValidationError(
+        `Payment: CredentialIDs length cannot exceed ${MAX_CREDENTIAL_IDS} elements (actual: ${props.CredentialIDs.length})`,
+      );
+    }
+    for (let i = 0; i < props.CredentialIDs.length; i++) {
+      const cid = props.CredentialIDs[i];
+      if (
+        !isString(cid) ||
+        !isHex(cid) ||
+        cid.length !== CREDENTIAL_ID_LENGTH
+      ) {
+        throw new ValidationError(
+          `Payment: CredentialIDs[${i}] must be a ${CREDENTIAL_ID_LENGTH}-character hex string`,
+        );
+      }
+    }
+    // xrpl.js validateCredentialsList rejects duplicates; mirror that
+    // (xrpl.js common.ts: containsDuplicates check).
+    const seen = new Set<string>();
+    for (const cid of props.CredentialIDs) {
+      if (seen.has(cid)) {
+        throw new ValidationError(
+          'Payment: CredentialIDs cannot contain duplicate elements',
+        );
+      }
+      seen.add(cid);
+    }
+  }
+
+  // ── DomainID ── optional 64-character hex string (XLS-0080d Permissioned
+  //   DEX). xrpl.js validatePayment calls validateOptionalField(tx,
+  //   'DomainID', isDomainID).
+  if (props.DomainID !== undefined && !isDomainID(props.DomainID)) {
+    throw new ValidationError(
+      'Payment: DomainID must be a 64-character hex string',
+    );
   }
 
   // ─── Base transaction fields ───

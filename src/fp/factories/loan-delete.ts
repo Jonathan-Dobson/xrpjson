@@ -51,8 +51,14 @@
  * rather than during a separate `.validate()` step.
  *
  * Source citation:
- *   - xrpl.js `validateBaseTransaction` (called transitively by
- *     `validateLoanDelete`) — checks Account via `isAccount`.
+ *   - xrpl.js `validateBaseTransaction` at `models/transactions/common.ts:987`
+ *     (`validateRequiredField(common, 'Account', isString)`) — the address
+ *     format guard is absent.
+ *   - Class API `validateBaseTransaction` at `src/validation/base.ts`
+ *     (lines 40–41 — `if (!isString(tx['Account']))`) — likewise absent.
+ *   - rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *     (`case STI_ACCOUNT:` — the field is parsed as an `AccountID`; anything
+ *     that is neither hex nor valid base58 is `invalidData`).
  *   - Local helper `isAccount` at `src/validation/helpers.ts` lines 55–60.
  */
 import type { BasePropsFields } from '../../types/base.js';

@@ -57,9 +57,13 @@
  *      and skips `isAccount`. The factory uses `isAccount` so a
  *      malformed Account is caught at construction rather than at
  *      `.validate()` time.
- *      Source: xrpl.js `validateBaseTransaction` calls `isAccount`
- *      on `tx.Account`. Local helper at `src/validation/helpers.ts`
- *      lines 55–60.
+ *      Source: rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *      (`case STI_ACCOUNT:` — the field is parsed as an `AccountID`;
+ *      anything that is neither hex nor valid base58 is `invalidData`).
+ *      xrpl.js `models/transactions/common.ts:987`
+ *      (`validateRequiredField(common, 'Account', isString)`) and the
+ *      Class API `src/validation/base.ts:40–41` both lack the guard.
+ *      Local helper at `src/validation/helpers.ts` lines 55–60.
  */
 import type { Currency } from '../../types/amounts.js';
 import type { BasePropsFields } from '../../types/base.js';

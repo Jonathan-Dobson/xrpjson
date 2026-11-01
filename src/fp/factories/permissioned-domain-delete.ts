@@ -26,28 +26,32 @@
  *
  * What: `Account` is validated as a well-formed XRPL classic or X-address.
  *
- * Why: xrpl.js's `validatePermissionedDomainDelete`
- *      (`~/.mavis/docs.local/xrpl.js/repo/packages/xrpl/src/models/
- *      transactions/permissionedDomainDelete.ts` line 25) calls
- *      `validateBaseTransaction`, which checks Account via `isAccount`
- *      (well-formed XRPL address). The local class API's
- *      `validateBaseTransaction` (`src/validation/base.ts` lines 28–32)
- *      only checks `isString(Account)`, missing the address-format guard
- *      that xrpl.js performs. A malformed Account therefore passes the
- *      class constructor and only fails at the deferred `.validate()`
- *      step. The factory matches xrpl.js's strictness at construction
- *      time.
+ * Why: neither the Class API nor xrpl.js checks the *format* of `Account`.
+ *      The Class API's base validator (`src/validation/base.ts` lines 40–41)
+ *      and xrpl.js's (`models/transactions/common.ts:987`) both call
+ *      `validateRequiredField(…, 'Account', isString)`, so a malformed
+ *      address such as `"not-an-address"` passes and only fails at the
+ *      ledger. rippled parses `Account` as an `AccountID` and rejects
+ *      anything that is neither hex nor valid base58, so the rule is the
+ *      ledger's own. The factory applies it at construction time.
  *
  * Source citation:
  *   - xrpl.js `validatePermissionedDomainDelete` at
  *     `~/.mavis/docs.local/xrpl.js/repo/packages/xrpl/src/models/
- *     transactions/permissionedDomainDelete.ts` (line 22–28 — calls
+ *     transactions/permissionedDomainDelete.ts` (lines 22–28 — calls
  *     `validateBaseTransaction(tx)` + `validateRequiredField(tx,
  *     'DomainID', isString)`).
- *   - Local `validateBaseTransaction` at `src/validation/base.ts`
- *     (lines 28–32 — only does `isString(tx['Account'])`).
+ *   - xrpl.js `validateBaseTransaction` at `models/transactions/common.ts:987`
+ *     (`validateRequiredField(common, 'Account', isString)`) — the address
+ *     format guard is absent.
+ *   - Class API `validateBaseTransaction` at `src/validation/base.ts`
+ *     (lines 40–41 — `if (!isString(tx['Account']))`) — likewise absent.
+ *   - rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *     (`case STI_ACCOUNT:` — the field is parsed as an `AccountID`; anything
+ *     that is neither hex nor valid base58 is `invalidData`).
  *   - Local helper `isAccount` at `src/validation/helpers.ts`
- *     (lines 55–60 — regex check for classic or X-address format).
+ *     (lines 55–60 — regex check for classic or X-address format, using the
+ *     patterns at lines 48–49).
  */
 import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isDomainID } from '../../validation/helpers.js';

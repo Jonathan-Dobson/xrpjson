@@ -123,6 +123,19 @@
  *     (`~/.mavis/docs.local/xrpl-dev-portal/repo/docs/concepts/tokens/nfts/dynamic-nfts.md`
  *     line 13: "enable the `tfMutable` flag (`0x00000010`) to make the NFT
  *     mutable.").
+ *
+ * - **`Account` must be a well-formed XRPL classic or X-address.** The
+ *   class API's base validator checks `Account` with `isString` only, so
+ *   `"not-an-address"` passes. The factory requires a well-formed
+ *   address — a format check, not a checksum verification. rippled
+ *   parses `Account` as an `AccountID` and rejects anything that is
+ *   neither hex nor valid base58, so the rule is the ledger's own;
+ *   xrpl.js checks the field with `isString` and ignores it.
+ *   - Source: rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *     (`case STI_ACCOUNT:`);
+ *     xrpl.js `models/transactions/common.ts:987`
+ *     (`validateRequiredField(common, 'Account', isString)`);
+ *     Class API `src/validation/base.ts:40–41`.
  */
 import type { BasePropsFields } from '../../types/base.js';
 import type { Amount } from '../../types/amounts.js';

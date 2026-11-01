@@ -88,10 +88,26 @@
  *      no spec source mandates or defines its shape.
  *      Source: XLS-0080 §3.1 field table; xrpl.js
  *              `permissionedDomainSet.ts` (no `AcceptedAccounts`).
+ *
+ *   9. `Account` must be a well-formed XRPL classic or X-address.
+ *      The class API's base validator checks `Account` with `isString`
+ *      only, so `"not-an-address"` passes. The factory requires a
+ *      well-formed address — a format check, not a checksum verification.
+ *      rippled parses `Account` as an `AccountID` and rejects anything
+ *      that is neither hex nor valid base58, so the rule is the ledger's
+ *      own; xrpl.js checks the field with `isString` and ignores it.
+ *      Source: rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *              (`case STI_ACCOUNT:`);
+ *              xrpl.js `models/transactions/`common.ts:987` (`validateRequiredField(common, 'Account', isString)`)`.
  */
 import type { BasePropsFields } from '../../types/base.js';
 import type { AuthorizeCredential } from '../../types/common.js';
-import { isAuthorizeCredential, isHex, isString } from '../../validation/helpers.js';
+import {
+  isAccount,
+  isAuthorizeCredential,
+  isHex,
+  isString,
+} from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
@@ -184,15 +200,12 @@ function validateCredentialType(txType: string, value: unknown): string {
 export function permissionedDomainSet(
   props: PermissionedDomainSetProps,
 ): PermissionedDomainSet {
-  // ── Account ── required, must be a non-empty string.
+  // ── Account ── required, must be a valid XRPL classic or X-address.
   require(
     props.Account,
     'PermissionedDomainSet: Account is required',
-    isString,
+    isAccount,
   );
-  if (props.Account.length === 0) {
-    throw new ValidationError('PermissionedDomainSet: Account is required');
-  }
 
   // ── DomainID ── optional, 64-char hex AND non-zero when present.
   if (props.DomainID !== undefined) {

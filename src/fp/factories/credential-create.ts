@@ -82,14 +82,19 @@
  *      Source: xrpl-dev-portal `credentialcreate.md` (Error Cases
  *              table, row for `temINVALID_ACCOUNT_ID`).
  *
- *   6. `Account` must be a non-empty string.
- *      The class uses `isAccount` which allows empty strings to slip
- *      through the format regex's lower bound (24+ chars), so an empty
- *      Account would actually be caught — but only as a side effect of
- *      length. The factory makes the intent explicit.
+ *   6. `Account` must be a well-formed XRPL classic or X-address.
+ *      The class uses `isAccount` on the field, but the class API's base
+ *      validator checks `Account` with `isString` only, so
+ *      `"not-an-address"` passes. The factory requires a well-formed
+ *      address — a format check, not a checksum verification. rippled
+ *      parses `Account` as an `AccountID` and rejects anything that is
+ *      neither hex nor valid base58, so the rule is the ledger's own;
+ *      xrpl.js checks the field with `isString` and ignores it.
  *      Source: XLS-0070 §3.1 (Account is required, type AccountID);
- *              xrpl.js `validateCredentialCreate` calls
- *              `validateRequiredField(tx, 'Account', isString)`.
+ *              rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *              (`case STI_ACCOUNT:`);
+ *              xrpl.js `models/transactions/credentialCreate.ts:50`
+ *              (`validateRequiredField(tx, 'Account', isString)`).
  */
 import type { BasePropsFields } from '../../types/base.js';
 import { isAccount, isHex, isNumber, isString } from '../../validation/helpers.js';
@@ -230,15 +235,12 @@ function validateExpiration(value: unknown): number {
 export function credentialCreate(
   props: CredentialCreateProps,
 ): CredentialCreate {
-  // ── Account ── required, must be a non-empty string.
+  // ── Account ── required, must be a valid XRPL classic or X-address.
   require(
     props.Account,
     'CredentialCreate: Account is required',
-    isString,
+    isAccount,
   );
-  if (props.Account.length === 0) {
-    throw new ValidationError('CredentialCreate: Account is required');
-  }
 
   // ── Subject ── required, must be a valid XRPL account AND not ACCOUNT_ZERO.
   require(

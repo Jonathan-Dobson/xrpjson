@@ -33,10 +33,21 @@
  *      negative (`temBAD_AMOUNT`)". xrpl.js `isAmount` accepts any
  *      numeric string and does not check the sign of the `value`
  *      sub-field of object amounts.
+ *
+ *   3. `Account` must be a well-formed XRPL classic or X-address.
+ *      The class API's base validator checks `Account` with `isString`
+ *      only, so `"not-an-address"` passes. The factory requires a
+ *      well-formed address — a format check, not a checksum verification.
+ *      rippled parses `Account` as an `AccountID` and rejects anything
+ *      that is neither hex nor valid base58, so the rule is the ledger's
+ *      own; xrpl.js checks the field with `isString` and ignores it.
+ *      Source: rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *              (`case STI_ACCOUNT:`);
+ *              xrpl.js `models/transactions/`common.ts:987` (`validateRequiredField(common, 'Account', isString)`)`.
  */
 import type { BasePropsFields } from '../../types/base.js';
 import type { Amount, MPTAmount } from '../../types/amounts.js';
-import { isAmount, isHex, isString } from '../../validation/helpers.js';
+import { isAccount, isAmount, isHex, isString } from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
 import { buildFrozenTx, mergeForWith } from '../shape.js';
@@ -120,8 +131,8 @@ function isPositiveAmount(amount: Amount | MPTAmount): boolean {
 // ─── Factory ─────────────────────────────────────────────────────────
 
 export function vaultDeposit(props: VaultDepositProps): VaultDeposit {
-  // ── Account ── required, must be a non-empty string (class parity).
-  if (!isString(props.Account) || props.Account.length === 0) {
+  // ── Account ── required, must be a valid XRPL classic or X-address.
+  if (!isAccount(props.Account)) {
     throw new ValidationError('VaultDeposit: Account is required');
   }
 

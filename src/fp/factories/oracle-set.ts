@@ -86,9 +86,21 @@
  * Source: XLS-47 §"Transaction fields for OracleSet" table;
  * "The transaction fails if: ... `AssetClass` field length exceeds 16
  * bytes".
+ *
+ *   7. `Account` must be a well-formed XRPL classic or X-address.
+ *      The class API's base validator checks `Account` with `isString`
+ *      only, so `"not-an-address"` passes. The factory requires a
+ *      well-formed address — a format check, not a checksum verification.
+ *      rippled parses `Account` as an `AccountID` and rejects anything
+ *      that is neither hex nor valid base58, so the rule is the ledger's
+ *      own; xrpl.js checks the field with `isString` and ignores it.
+ *      Source: rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *              (`case STI_ACCOUNT:`);
+ *              xrpl.js `models/transactions/`common.ts:987` (`validateRequiredField(common, 'Account', isString)`)`.
  */
 import type { BasePropsFields } from '../../types/base.js';
 import {
+  isAccount,
   isArray,
   isHex,
   isNumber,
@@ -295,11 +307,8 @@ function validatePriceDataSeriesElement(value: unknown, index: number): void {
 // ─── Factory ─────────────────────────────────────────────────────────
 
 export function oracleSet(props: OracleSetProps): OracleSet {
-  // ── Account ── required, must be a non-empty string.
-  require(props.Account, 'OracleSet: Account is required', isString);
-  if (props.Account.length === 0) {
-    throw new ValidationError('OracleSet: Account is required');
-  }
+  // ── Account ── required, must be a valid XRPL classic or X-address.
+  require(props.Account, 'OracleSet: Account is required', isAccount);
 
   // ── OracleDocumentID ── required, positive integer, UINT32.
   if (!isNumber(props.OracleDocumentID) || !Number.isInteger(props.OracleDocumentID)) {

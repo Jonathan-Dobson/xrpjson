@@ -77,6 +77,35 @@
  *      **exactly one** of these flags, plus any global flags."
  *      That sentence is byte-identical to `ammwithdraw.md` line 107; the
  *      two rules are the same and only the flag list differs.
+ *
+ *   10. `Account` must be a well-formed XRPL classic or X-address.
+ *       The class API's base validator checks `Account` with `isString`
+ *       only, so `"not-an-address"` passes. The factory requires a
+ *       well-formed address — a format check, not a checksum verification.
+ *       rippled parses `Account` as an `AccountID` and rejects anything
+ *       that is neither hex nor valid base58, so the rule is the ledger's
+ *       own; xrpl.js checks the field with `isString` and ignores it.
+ *       Source: rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *               (`case STI_ACCOUNT:`);
+ *               xrpl.js `models/transactions/common.ts:987`
+ *               (`validateRequiredField(common, 'Account', isString)`);
+ *               Class API `src/validation/base.ts:40–41`.
+ *
+ *   11. `TradingFee` is not declared by the class.
+ *       The class exposes no `TradingFee` field, so callers using the class
+ *       API cannot set the AMM's trading fee when depositing into an empty
+ *       two-asset AMM. The factory adds the field with the protocol's
+ *       rules: it is permitted only with the `tfTwoAssetIfEmpty` deposit
+ *       mode, and must be an integer in `[0, 1000]`.
+ *       Source: rippled `include/xrpl/protocol/detail/transactions.macro`
+ *               (the `ttAMM_DEPOSIT` block lists `{sfTradingFee,
+ *               SoeOptional}`);
+ *               rippled `src/libxrpl/tx/transactors/dex/AMMDeposit.cpp:64`
+ *               (`auto const tradingFee = ctx.tx[~sfTradingFee];`) and
+ *               lines 78–112 (every mode except `tfTwoAssetIfEmpty`
+ *               rejects it with `temMALFORMED`);
+ *               rippled `include/xrpl/protocol/AMMCore.h:16`
+ *               (`kTradingFeeThreshold = 1000`).
  */
 import type { BasePropsFields } from '../../types/base.js';
 import type { Amount, IssuedCurrencyAmount } from '../../types/amounts.js';
@@ -86,6 +115,7 @@ import {
   isAmount,
   isIssuedCurrency,
   isIssuedCurrencyAmount,
+  isNumber,
 } from '../../validation/helpers.js';
 import { validateBaseTransaction } from '../../validation/base.js';
 import { ValidationError } from '../../errors.js';
@@ -118,6 +148,18 @@ const AMM_DEPOSIT_FLAG_BITS = [
   0x00400000, // tfLimitLPToken
   0x00800000, // tfTwoAssetIfEmpty
 ] as const;
+
+/**
+ * The one deposit mode that may carry `TradingFee` — rippled rejects
+ * `sfTradingFee` in every other mode (`AMMDeposit::preflight`).
+ */
+const TF_TWO_ASSET_IF_EMPTY = 0x00800000;
+
+/**
+ * rippled `include/xrpl/protocol/AMMCore.h:16` —
+ * `constexpr std::uint16_t kTradingFeeThreshold = 1000;`
+ */
+const AMM_MAX_TRADING_FEE = 1000;
 
 const AMM_DEPOSIT_FLAGS_MASK = AMM_DEPOSIT_FLAG_BITS.reduce<number>(
   (acc, bit) => acc | bit,
@@ -171,6 +213,14 @@ export interface AmmDepositProps extends Omit<
   EPrice?: Amount | undefined;
   /** Target LP tokens out (IssuedCurrencyAmount). */
   LPTokenOut?: IssuedCurrencyAmount | undefined;
+  /**
+   * The AMM's trading fee, in tenths of a basis point.
+   *
+   * Optional, and only permitted with the `tfTwoAssetIfEmpty` deposit mode —
+   * rippled rejects it in every other mode. When present it must be an
+   * integer in `[0, 1000]`.
+   */
+  TradingFee?: number | undefined;
   /** Bit-flags for this transaction. Numeric or boolean map. */
   Flags?: number | AMMDepositFlagsInterface | undefined;
 }
@@ -315,6 +365,43 @@ export function ammDeposit(props: AmmDepositProps): AmmDeposit {
     throw new ValidationError(
       'AMMDeposit: Flags must specify exactly one AMM-deposit mode flag (got multiple)',
     );
+  }
+
+  // ── TradingFee ── only legal in the `tfTwoAssetIfEmpty` mode, and then
+  //   bounded by the protocol's UINT16 threshold.
+  //
+  //   rippled `AMMDeposit::preflight` reads `sfTradingFee` and rejects it in
+  //   every deposit mode except `tfTwoAssetIfEmpty`:
+  //     tfLPToken         — `|| tradingFee` → temMALFORMED
+  //     tfSingleAsset     — `|| tradingFee` → temMALFORMED
+  //     tfTwoAsset        — `|| tradingFee` → temMALFORMED
+  //     tfOneAssetLPToken — `|| tradingFee` → temMALFORMED
+  //     tfLimitLPToken    — `|| tradingFee` → temMALFORMED
+  //     tfTwoAssetIfEmpty — permitted
+  //   and only then checks the bound (`AMMDeposit.cpp:168`):
+  //     `if (tradingFee > kTradingFeeThreshold) return temBAD_FEE;`
+  //   with `kTradingFeeThreshold = 1000`
+  //   (`include/xrpl/protocol/AMMCore.h:16`).
+  //
+  //   Placed after the Flags block so the mode is known, and so the
+  //   placement mistake (temMALFORMED) is reported before the value
+  //   mistake (temBAD_FEE) — rippled's own order.
+  if (props.TradingFee !== undefined) {
+    if (!isNumber(props.TradingFee) || !Number.isInteger(props.TradingFee)) {
+      throw new ValidationError(
+        'AMMDeposit: TradingFee must be an integer (UINT16)',
+      );
+    }
+    if ((ammFlagBits & TF_TWO_ASSET_IF_EMPTY) === 0) {
+      throw new ValidationError(
+        'AMMDeposit: TradingFee is only allowed with the tfTwoAssetIfEmpty deposit mode',
+      );
+    }
+    if (props.TradingFee < 0 || props.TradingFee > AMM_MAX_TRADING_FEE) {
+      throw new ValidationError(
+        `AMMDeposit: TradingFee must be in [0, ${AMM_MAX_TRADING_FEE}]`,
+      );
+    }
   }
 
   // ─── Base transaction fields ───

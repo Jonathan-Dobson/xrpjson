@@ -601,6 +601,75 @@ describe('fp/ammDeposit()', () => {
   // calls `validateBaseTransaction`, so a malformed one is rejected at
   // construction instead of freezing a transaction that would fail at
   // submit. Values below are chosen to be VALID under src/validation/base.ts.
+  // ─── TradingFee ───────────────────────────────────────────────────────────
+  // rippled's `ttAMM_DEPOSIT` block lists `{sfTradingFee, SoeOptional}`, and
+  // `AMMDeposit::preflight` permits it in exactly one deposit mode —
+  // `tfTwoAssetIfEmpty` — then bounds it by `kTradingFeeThreshold` (1000).
+  // The factory used to accept the field but never check it.
+  describe('TradingFee', () => {
+    it('accepts a fee in the tfTwoAssetIfEmpty mode', () => {
+      const tx = make({
+        Flags: AMMDepositFlags.tfTwoAssetIfEmpty,
+        Amount2: '1000',
+        TradingFee: 500,
+      });
+      expect(tx.TradingFee).toBe(500);
+    });
+
+    it('rejects a fee in any other deposit mode', () => {
+      expect(() => make({ Flags: AMMDepositFlags.tfSingleAsset, TradingFee: 500 })).toThrow(
+        /TradingFee is only allowed with the tfTwoAssetIfEmpty deposit mode/,
+      );
+    });
+
+    it('rejects a fee above the protocol threshold', () => {
+      expect(() =>
+        make({
+          Flags: AMMDepositFlags.tfTwoAssetIfEmpty,
+          Amount2: '1000',
+          TradingFee: 1001,
+        }),
+      ).toThrow(/TradingFee must be in \[0, 1000\]/);
+    });
+
+    it('accepts the boundary values 0 and 1000', () => {
+      expect(() =>
+        make({
+          Flags: AMMDepositFlags.tfTwoAssetIfEmpty,
+          Amount2: '1000',
+          TradingFee: 0,
+        }),
+      ).not.toThrow();
+      expect(() =>
+        make({
+          Flags: AMMDepositFlags.tfTwoAssetIfEmpty,
+          Amount2: '1000',
+          TradingFee: 1000,
+        }),
+      ).not.toThrow();
+    });
+
+    it('rejects a non-integer fee', () => {
+      expect(() =>
+        make({
+          Flags: AMMDepositFlags.tfTwoAssetIfEmpty,
+          Amount2: '1000',
+          TradingFee: 0.5,
+        }),
+      ).toThrow(/TradingFee must be an integer/);
+    });
+
+    it('rejects a negative fee', () => {
+      expect(() =>
+        make({
+          Flags: AMMDepositFlags.tfTwoAssetIfEmpty,
+          Amount2: '1000',
+          TradingFee: -1,
+        }),
+      ).toThrow(/TradingFee must be in \[0, 1000\]/);
+    });
+  });
+
   describe('BaseTransactionFields', () => {
     const base = {
       Account: LP,

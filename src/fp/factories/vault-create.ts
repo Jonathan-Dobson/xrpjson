@@ -11,11 +11,29 @@
  *   const tx2 = tx.with({ WithdrawalPolicy: 0x0001 });
  *
  * @see https://xrpl.org/docs/references/protocol/transactions/types/vaultcreate
+ *
+ * ## Divergences
+ *
+ * The class-based API at the Class API's `VaultCreate` is missing one rule
+ * that the canonical sources require. The factory adds it:
+ *
+ *   1. `Account` must be a well-formed XRPL classic or X-address.
+ *      The class API's base validator checks `Account` with `isString`
+ *      only, so `"not-an-address"` passes. The factory requires a
+ *      well-formed address — a format check, not a checksum verification.
+ *      rippled parses `Account` as an `AccountID` and rejects anything
+ *      that is neither hex nor valid base58, so the rule is the ledger's
+ *      own; xrpl.js checks the field with `isString` and ignores it.
+ *      Source: rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *              (`case STI_ACCOUNT:`);
+ *              xrpl.js `models/transactions/common.ts:987`
+ *              (`validateRequiredField(common, 'Account', isString)`).
  */
 import type { BasePropsFields } from '../../types/base.js';
 import type { Currency } from '../../types/amounts.js';
 import type { VaultCreateFlagsInterface } from '../../types/flags.js';
 import {
+  isAccount,
   isCurrency,
   isDomainID,
   isHex,
@@ -92,8 +110,8 @@ export interface VaultCreate
 // ─── Factory ─────────────────────────────────────────────────────────
 
 export function vaultCreate(props: VaultCreateProps): VaultCreate {
-  // ── Account ── required, must be a valid XRPL classic address.
-  require(props.Account, 'VaultCreate: Account is required', isString);
+  // ── Account ── required, must be a valid XRPL classic or X-address.
+  require(props.Account, 'VaultCreate: Account is required', isAccount);
 
   // ── Asset ── required, must be a valid Currency.
   if (!isCurrency(props.Asset)) {

@@ -36,9 +36,20 @@
  *      Source: XLS-0065 §3.4.2.1 #1 (`temMALFORMED`);
  *              xrpl-dev-portal `vaultdelete.md` (Error Cases table);
  *              XLS-0065 §3.4.1 (`HASH256` internal type).
+ *
+ *   3. `Account` must be a well-formed XRPL classic or X-address.
+ *      The class API's base validator checks `Account` with `isString`
+ *      only, so `"not-an-address"` passes. The factory requires a
+ *      well-formed address — a format check, not a checksum verification.
+ *      rippled parses `Account` as an `AccountID` and rejects anything
+ *      that is neither hex nor valid base58, so the rule is the ledger's
+ *      own; xrpl.js checks the field with `isString` and ignores it.
+ *      Source: rippled `src/libxrpl/protocol/STParsedJSON.cpp:919`
+ *              (`case STI_ACCOUNT:`);
+ *              xrpl.js `models/transactions/`common.ts:987` (`validateRequiredField(common, 'Account', isString)`)`.
  */
 import type { BasePropsFields } from '../../types/base.js';
-import { isHex, isString } from '../../validation/helpers.js';
+import { isAccount, isHex, isString } from '../../validation/helpers.js';
 import { ValidationError } from '../../errors.js';
 import { validateBaseTransaction } from '../../validation/base.js';
 import { buildFrozenTx, mergeForWith, require } from '../shape.js';
@@ -89,7 +100,7 @@ export interface VaultDelete
 
 export function vaultDelete(props: VaultDeleteProps): VaultDelete {
   // ── Account ── required, must be a valid XRPL classic or X-address.
-  require(props.Account, 'VaultDelete: Account is required', isString);
+  require(props.Account, 'VaultDelete: Account is required', isAccount);
 
   // ── VaultID ── required, 64-char hex, and not all-zero.
   if (
