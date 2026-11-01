@@ -13,6 +13,57 @@ a reader can tell a ledger-facing behaviour change from an internal cleanup.
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-11-01
+
+### Fixed
+
+**`ammDeposit` now enforces rippled's per-deposit-mode field rules.**
+`AMMDeposit::preflight` fixes which of `Amount`, `Amount2`, `EPrice`,
+`LPTokenOut` and `TradingFee` may accompany each deposit mode:
+
+| Mode | Requires | Forbids |
+|---|---|---|
+| `tfLPToken` | `LPTokenOut`; `Amount` and `Amount2` together or not at all | `EPrice`, `TradingFee` |
+| `tfSingleAsset` | `Amount` | `Amount2`, `EPrice`, `TradingFee` |
+| `tfTwoAsset` | `Amount`, `Amount2` | `EPrice`, `TradingFee` |
+| `tfOneAssetLPToken` | `Amount`, `LPTokenOut` | `Amount2`, `EPrice`, `TradingFee` |
+| `tfLimitLPToken` | `Amount`, `EPrice` | `LPTokenOut`, `Amount2`, `TradingFee` |
+| `tfTwoAssetIfEmpty` | `Amount`, `Amount2` | `EPrice`, `LPTokenOut` |
+
+The factory checked the mode flag itself but none of this, so a
+`tfSingleAsset` deposit carrying `Amount2` constructed successfully and was
+rejected by the ledger with `temMALFORMED`.
+
+The matrix replaces the three generic cross-field rules the factory used to
+check (`Amount` with `Amount2`, `Amount` with `EPrice`, and at least one of
+`LPTokenOut` or `Amount`). Every combination those rejected is rejected by
+the matrix too — but the message now names the mode and the offending
+field, and the rules the generic form could not express are caught at all.
+
+**This is a behaviour change.** A deposit that was previously accepted and
+then failed at the ledger now fails at construction, with a message naming
+the mode. The three generic messages are gone:
+
+- `AMMDeposit: must set Amount with Amount2`
+- `AMMDeposit: must set Amount with EPrice`
+- `AMMDeposit: must set at least LPTokenOut or Amount`
+
+The forbidden check runs before the required check: a field the mode forbids
+has to be removed regardless of what else is wrong, whereas a missing
+required field might be satisfied by a different valid shape.
+
+Source: rippled `src/libxrpl/tx/transactors/dex/AMMDeposit.cpp:66–112`.
+Found by: the whole-project review
+([`docs/audit/2026-11-01-code-quality-audit.md`](./docs/audit/2026-11-01-code-quality-audit.md)),
+P2-3.
+
+Tests: 4,119 → 4,126. The new *deposit-mode field matrix* block in
+`tests/fp/amm-deposit.test.ts` drives the matrix from a transcription of
+rippled's branches: every mode's minimal valid shape is accepted, every
+field each mode forbids is rejected, every required field is enforced when
+missing, and `tfLPToken`'s together-or-neither rule is checked in all four
+combinations.
+
 ## [1.5.0] — 2026-11-01
 
 Remediates the findings of the whole-project review in
@@ -498,7 +549,8 @@ in the downstream harness.
 Not reconstructed here. `git log` predates this file; consult the repository
 history for those releases.
 
-[Unreleased]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.4.2...v1.4.3
 [1.2.0]: https://github.com/Jonathan-Dobson/xrpjson/compare/v1.1.0...v1.2.0
